@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+app/__init__.py
+app/main.py
+app/sql_guardrails.py
+app/sql_runner.py
+copilot_api.egg-info/PKG-INFO
+copilot_api.egg-info/SOURCES.txt
+copilot_api.egg-info/dependency_links.txt
+copilot_api.egg-info/requires.txt
+copilot_api.egg-info/top_level.txt

@@ -1,0 +1,61 @@
+intent_id,template
+sales_recent_sold_items,recent {limit} sold items
+sales_recent_sold_items,show last {limit} sold artworks
+sales_recent_sold_items,latest {limit} sold item lines
+sales_top_customers_revenue,top {limit} customers by revenue in {window}
+sales_top_customers_revenue,who are the top {limit} buyers by revenue for {window}
+sales_top_customers_revenue,highest revenue customers {window} top {limit}
+sales_top_artists_totalsales,top {limit} artists by total sales in {window}
+sales_top_artists_totalsales,best selling artists for {window} top {limit}
+sales_top_artists_totalsales,"rank artists by total sales for {window}, top {limit}"
+sales_revenue_trend,revenue trend for {window} by {bucket}
+sales_revenue_trend,show revenue over time for {window} grouped by {bucket}
+sales_revenue_trend,plot revenue timeline in {window} by {bucket}
+sales_returns_summary,returns summary for {window}
+sales_returns_summary,how many returns happened in {window}
+sales_returns_summary,return amount and count for {window}
+sales_discount_anomalies,show {limit} highest discount sale lines in {window}
+sales_discount_anomalies,"discount anomalies for {window}, top {limit}"
+sales_discount_anomalies,which sold items had unusually high discounts in {window}
+sales_margin_anomalies,show {limit} negative margin sold items in {window}
+sales_margin_anomalies,"items sold below cost in {window}, top {limit}"
+sales_margin_anomalies,margin anomaly sale lines for {window}
+sales_quote_conversion,quote to sale conversion for {window}
+sales_quote_conversion,conversion rate from quote to sale in {window}
+sales_quote_conversion,how many quotes converted in {window}
+sales_location_performance,top {limit} locations by revenue in {window}
+sales_location_performance,location wise sales performance for {window}
+sales_location_performance,compare sales by location in {window}
+sales_layaway_outstanding,layaway outstanding due summary for {window}
+sales_layaway_outstanding,overdue layaway amount for {window}
+sales_layaway_outstanding,show {limit} layaway sales with highest overdue in {window}
+inventory_total_stock,inventory count and qoh summary for {window}
+inventory_total_stock,how many items are in stock in {window}
+inventory_total_stock,total inventory quantity on hand for {window}
+inventory_aging_items,show {limit} oldest unsold items
+inventory_aging_items,inventory aging report top {limit}
+inventory_aging_items,items older than {age_days} days top {limit}
+inventory_top_unsold_by_value,top {limit} unsold items by asking price
+inventory_top_unsold_by_value,highest value unsold inventory top {limit}
+inventory_top_unsold_by_value,show top {limit} unsold stock by total asking value
+inventory_turnover,inventory turnover for {window}
+inventory_turnover,stock turnover ratio in {window}
+inventory_turnover,how fast inventory moved in {window}
+inventory_location_mismatch,stock location mismatch anomalies top {limit}
+inventory_location_mismatch,find items where qoh and movement logs mismatch
+inventory_location_mismatch,location discrepancy report for inventory top {limit}
+inventory_stock_movement,recent {limit} stock movements
+inventory_stock_movement,show inventory transfers in {window} top {limit}
+inventory_stock_movement,item movement history for {window} top {limit}
+inventory_low_stock_alert,low stock alerts top {limit}
+inventory_low_stock_alert,items below reorder quantity top {limit}
+inventory_low_stock_alert,which inventory items are low in stock
+inventory_missing_data,items missing critical fields top {limit}
+inventory_missing_data,inventory data quality issues in {window}
+inventory_missing_data,show items with missing price artist or title top {limit}
+inventory_edition_mix,edition mix unique open limited nonstock in {window}
+inventory_edition_mix,count items by edition type for {window}
+inventory_edition_mix,edition type distribution over {window}
+inventory_recent_additions,recent {limit} inventory additions
+inventory_recent_additions,latest added items in {window} top {limit}
+inventory_recent_additions,newly received inventory list top {limit}

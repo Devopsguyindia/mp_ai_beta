@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "generated_prompt_count": 300,
+  "copilot_distribution": {
+    "sales": 150,
+    "inventory": 150
+  },
+  "files": [
+    "intent_catalog.json",
+    "prompt_templates.csv",
+    "prompt_to_sql_contracts.json",
+    "prompt_dataset_v1.jsonl"
+  ]
+}

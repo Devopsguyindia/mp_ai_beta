@@ -1,0 +1,29 @@
+{
+  "version": "v1",
+  "copilots": {
+    "sales": [
+      "sales_recent_sold_items",
+      "sales_top_customers_revenue",
+      "sales_top_artists_totalsales",
+      "sales_revenue_trend",
+      "sales_returns_summary",
+      "sales_discount_anomalies",
+      "sales_margin_anomalies",
+      "sales_quote_conversion",
+      "sales_location_performance",
+      "sales_layaway_outstanding"
+    ],
+    "inventory": [
+      "inventory_total_stock",
+      "inventory_aging_items",
+      "inventory_top_unsold_by_value",
+      "inventory_turnover",
+      "inventory_location_mismatch",
+      "inventory_stock_movement",
+      "inventory_low_stock_alert",
+      "inventory_missing_data",
+      "inventory_edition_mix",
+      "inventory_recent_additions"
+    ]
+  }
+}
