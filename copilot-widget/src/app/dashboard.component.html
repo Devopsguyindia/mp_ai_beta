@@ -1,0 +1,128 @@
+<div class="page">
+  <header class="topbar">
+    <div>
+      <div class="title">MP AI Copilot Dashboard</div>
+      <div class="sub">
+        Welcome {{ session?.firstname || session?.username }} @ {{ session?.company_name }}
+        <span class="role">({{ session?.role_name || 'User' }})</span>
+      </div>
+    </div>
+    <button class="logout" (click)="logout()">Logout</button>
+  </header>
+
+  <main class="pageWrap">
+    <section class="widgetsGrid">
+      <div class="widget">
+        <div class="widgetLabel">Gallery</div>
+        <div class="widgetValue">{{ session?.company_name || 'N/A' }}</div>
+      </div>
+      <div class="widget">
+        <div class="widgetLabel">User</div>
+        <div class="widgetValue">{{ session?.firstname || session?.username || 'N/A' }}</div>
+      </div>
+      <div class="widget">
+        <div class="widgetLabel">Role</div>
+        <div class="widgetValue">{{ session?.role_name || 'User' }}</div>
+      </div>
+      <div class="widget">
+        <div class="widgetLabel">Copilot</div>
+        <div class="widgetValue">{{ selectedCopilotLabel | titlecase }}</div>
+      </div>
+    </section>
+
+    <section class="topPanels">
+      <section class="panel mainPanel">
+        <div class="controls">
+          <div class="idBox">idcompany: {{ session?.idcompany }}</div>
+          <label class="checkbox">
+            <input type="checkbox" [(ngModel)]="debug" />
+            <span>Show work (debug)</span>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Ask Copilot</span>
+          <textarea [(ngModel)]="question" rows="4" placeholder="Type your question..."></textarea>
+        </label>
+
+        <div class="actions">
+          <button (click)="run()" [disabled]="loading || !question?.trim()">
+            {{ loading ? 'Thinking...' : 'Ask Me...' }}
+          </button>
+          <span class="meta" *ngIf="response?.debug?.elapsed_ms">Last query: {{ response?.debug?.elapsed_ms }} ms</span>
+        </div>
+
+        <div class="hintCards">
+          <div class="hintCard">
+            <div class="hintTitle">Rows</div>
+            <div class="hintValue">{{ rowsCardValue }}</div>
+          </div>
+          <div class="hintCard">
+            <div class="hintTitle">Generation</div>
+            <div class="hintValue">{{ generationCardValue }}</div>
+          </div>
+          <div class="hintCard">
+            <div class="hintTitle">Intent</div>
+            <div class="hintValue">{{ intentCardValue }}</div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel side">
+        <div class="section">
+          <div class="sectionTitle">Suggested prompts (auto copilot)</div>
+          <button class="pill" *ngFor="let s of suggestedPrompts" (click)="usePrompt(s)">{{ s }}</button>
+        </div>
+
+        <div class="section">
+          <div class="sectionTitle">Last 10 prompts</div>
+          <div class="historyItem" *ngFor="let h of history" (click)="usePrompt(h)">{{ h }}</div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="panel resultsPanel">
+      <div class="resultsHeader">
+        <div class="resultsTitle">Query Output</div>
+        <div class="resultsSub" *ngIf="response?.debug?.request_id">Request {{ response?.debug?.request_id }}</div>
+      </div>
+
+      <div class="error" *ngIf="error">
+        <div class="errorTitle">Error</div>
+        <pre>{{ error | json }}</pre>
+      </div>
+
+      <div class="answer" *ngIf="response">
+        <div class="answerTitle">Answer</div>
+        <div>{{ response.answer }}</div>
+      </div>
+
+      <div class="results" *ngIf="response?.data?.length">
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th *ngFor="let col of (response.data![0] | keyvalue)">{{ col.key }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of response.data">
+                <td *ngFor="let col of (row | keyvalue)">{{ col.value }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="empty" *ngIf="response && (!response.data || response.data.length === 0)">
+        No rows returned.
+      </div>
+
+      <div class="section debugBlock" *ngIf="debug && response?.debug">
+        <div class="sectionTitle">Show work</div>
+        <pre>{{ response.debug | json }}</pre>
+      </div>
+    </section>
+  </main>
+</div>
+

@@ -59,3 +59,93 @@ inventory_edition_mix,edition type distribution over {window}
 inventory_recent_additions,recent {limit} inventory additions
 inventory_recent_additions,latest added items in {window} top {limit}
 inventory_recent_additions,newly received inventory list top {limit}
+customer_top_by_ltv,top {limit} customers by lifetime value
+customer_top_by_ltv,highest value collectors top {limit}
+customer_top_by_ltv,rank customers by lifetime spend top {limit}
+customer_inactive_high_value,high value customers inactive for {window}
+customer_inactive_high_value,top inactive customers with prior high spend in {window}
+customer_inactive_high_value,which high value customers have gone inactive for {window}
+customer_new_acquisitions,new customers acquired in {window}
+customer_new_acquisitions,new collectors added in {window}
+customer_new_acquisitions,customer acquisition summary for {window}
+customer_repeat_rate,repeat purchase rate for {window}
+customer_repeat_rate,how many repeat buyers in {window}
+customer_repeat_rate,customer repeat frequency trend in {window}
+customer_overdue_balances,customers with overdue balances top {limit}
+customer_overdue_balances,top {limit} customers with pending receivables
+customer_overdue_balances,overdue dues by customer in {window}
+customer_conversion_funnel,customer conversion funnel in {window}
+customer_conversion_funnel,inquiry to quote to sale conversion by customer for {window}
+customer_conversion_funnel,customer conversion rate summary in {window}
+customer_interest_by_artist,customers interested in artist for {window} top {limit}
+customer_interest_by_artist,show customer interest by artist in {window}
+customer_interest_by_artist,which customers track artist demand in {window}
+customer_followup_candidates,follow-up candidates among customers top {limit}
+customer_followup_candidates,which customers need follow-up in {window}
+customer_followup_candidates,customer next-action shortlist top {limit}
+customer_segment_performance,customer segment performance in {window}
+customer_segment_performance,compare customer segments by revenue in {window}
+customer_segment_performance,segment wise customer sales trend in {window}
+customer_contact_data_quality,customer contact data quality issues top {limit}
+customer_contact_data_quality,customers with missing email or phone top {limit}
+customer_contact_data_quality,customer profile completeness report in {window}
+artist_sales_performance,artist sales performance in {window} top {limit}
+artist_sales_performance,top {limit} artists by revenue in {window}
+artist_sales_performance,artist wise sales summary in {window}
+artist_sell_through_rate,artist sell through rate in {window}
+artist_sell_through_rate,which artists have best sell through in {window}
+artist_sell_through_rate,sell through comparison by artist for {window}
+artist_inventory_aging,artist inventory aging top {limit}
+artist_inventory_aging,which artist items are aging in stock for {window}
+artist_inventory_aging,stale inventory by artist top {limit}
+artist_price_band_performance,artist performance by price band in {window}
+artist_price_band_performance,price band wise artist sales in {window}
+artist_price_band_performance,which artist price ranges perform best in {window}
+artist_top_collectors,top collectors per artist in {window} top {limit}
+artist_top_collectors,who buys each artist most in {window}
+artist_top_collectors,artist collector concentration report for {window}
+artist_discount_risk,artist discount risk anomalies in {window} top {limit}
+artist_discount_risk,which artists have high discount sales in {window}
+artist_discount_risk,discount outliers by artist for {window}
+artist_commission_due,artist commission due summary in {window}
+artist_commission_due,which artists have pending commission in {window}
+artist_commission_due,artist settlement due list top {limit}
+artist_exhibition_performance,artist exhibition performance in {window}
+artist_exhibition_performance,compare artist outcomes by exhibition in {window}
+artist_exhibition_performance,exhibition sales by artist for {window}
+artist_time_to_sell,artist time to sell in {window}
+artist_time_to_sell,average days to sell by artist for {window}
+artist_time_to_sell,which artists sell fastest in {window}
+artist_returns_profile,artist returns profile in {window}
+artist_returns_profile,return rate by artist for {window}
+artist_returns_profile,artists with most returns in {window} top {limit}
+vendor_outstanding_payables,vendor outstanding payables top {limit}
+vendor_outstanding_payables,which vendors are due for payment in {window}
+vendor_outstanding_payables,vendor dues summary for {window}
+vendor_spend_trend,vendor spend trend in {window}
+vendor_spend_trend,how vendor spend changed over {window}
+vendor_spend_trend,vendor cost timeline for {window}
+vendor_turnaround_comparison,vendor turnaround comparison in {window}
+vendor_turnaround_comparison,which vendors deliver fastest in {window}
+vendor_turnaround_comparison,compare vendor lead times for {window}
+vendor_rework_rate,vendor rework rate in {window}
+vendor_rework_rate,which vendors have high rework in {window}
+vendor_rework_rate,rework anomalies by vendor top {limit}
+vendor_shipment_cost_trend,vendor shipment cost trend in {window}
+vendor_shipment_cost_trend,shipping spend by vendor for {window}
+vendor_shipment_cost_trend,carrier vendor cost comparison in {window}
+vendor_overdue_invoices,overdue vendor invoices top {limit}
+vendor_overdue_invoices,vendors with overdue invoices in {window}
+vendor_overdue_invoices,pending vendor invoice dues for {window}
+vendor_duplicate_invoices,possible duplicate vendor invoices top {limit}
+vendor_duplicate_invoices,duplicate invoice risk by vendor in {window}
+vendor_duplicate_invoices,find repeated vendor invoices for {window}
+vendor_service_overlap,vendor service overlap opportunities in {window}
+vendor_service_overlap,which vendors provide overlapping services in {window}
+vendor_service_overlap,consolidation opportunities across vendors top {limit}
+vendor_quality_anomalies,vendor quality anomalies in {window} top {limit}
+vendor_quality_anomalies,which vendors have quality issues in {window}
+vendor_quality_anomalies,vendor quality risk report for {window}
+vendor_commitments_upcoming,upcoming vendor commitments in {window}
+vendor_commitments_upcoming,vendor due tasks and schedules in {window}
+vendor_commitments_upcoming,next vendor obligations top {limit}

@@ -3,7 +3,12 @@ from __future__ import annotations
 import os
 import re
 import time
-from typing import Any
+import uuid
+import base64
+import json
+from urllib import request as urlrequest, parse as urlparse, error as urlerror
+from datetime import datetime, timezone
+from typing import Any, Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -37,11 +42,27 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     idcompany: int = Field(..., ge=1, description="Tenant/company ID (gallery)")
+    access_token: str | None = Field(
+        default=None,
+        description="JWT from ERP login. If provided, company id is derived from token.",
+    )
     question: str = Field(..., min_length=1, max_length=4000)
+    copilot: Literal["sales", "inventory", "customer", "artist", "vendor"] | None = Field(
+        default=None,
+        description="Optional copilot selector. Backward compatible when omitted.",
+    )
     debug: bool = Field(False, description="If true, include SQL and validation details")
 
 
+class LoginRequest(BaseModel):
+    txt_company: str = Field(..., min_length=1, max_length=200)
+    txt_username: str = Field(..., min_length=1, max_length=200)
+    txt_password: str = Field(..., min_length=1, max_length=200)
+
+
 class DebugInfo(BaseModel):
+    request_id: str | None = None
+    server_ts_utc: str | None = None
     input_question: str | None = None
     matched_intent: str | None = None
     router_model: str | None = None
@@ -57,12 +78,33 @@ class DebugInfo(BaseModel):
     window_label: str | None = None
     generation_path: str | None = None
     generation_error: str | None = None
+    retry_attempted: bool | None = None
+    retry_success: bool | None = None
+    resolved_idcompany: int | None = None
+    selected_copilot: str | None = None
+    contract_guardrails: dict[str, Any] | None = None
 
 
 class ChatResponse(BaseModel):
     answer: str
     data: list[dict[str, Any]] | None = None
     debug: DebugInfo | None = None
+
+
+def _decode_jwt_payload_unverified(token: str) -> dict[str, Any]:
+    try:
+        parts = token.split(".")
+        if len(parts) < 2:
+            return {}
+        payload = parts[1]
+        payload += "=" * (-len(payload) % 4)
+        decoded = base64.urlsafe_b64decode(payload.encode("utf-8")).decode("utf-8")
+        data = json.loads(decoded)
+        if isinstance(data, dict):
+            return data
+        return {}
+    except Exception:
+        return {}
 
 
 def _to_sql_literal(value: Any) -> str:
@@ -89,36 +131,361 @@ def _render_sql_preview(sql: str, params: dict[str, Any]) -> str:
     return rendered
 
 
+def _extract_sql_relations(sql: str) -> set[str]:
+    matches = re.findall(r"(?is)\b(?:from|join)\s+([a-zA-Z_][a-zA-Z0-9_]*)", sql)
+    return {m.lower() for m in matches}
+
+
+def _infer_copilot_from_question(question: str) -> str:
+    q = question.lower()
+    scores = {
+        "sales": 0,
+        "inventory": 0,
+        "customer": 0,
+        "artist": 0,
+        "vendor": 0,
+    }
+    for token in ["sale", "sales", "sold", "revenue", "quote", "approval", "layaway", "return"]:
+        if token in q:
+            scores["sales"] += 1
+    for token in ["inventory", "stock", "qoh", "aging", "unsold", "reorder", "turnover"]:
+        if token in q:
+            scores["inventory"] += 1
+    for token in ["customer", "customers", "buyer", "collector", "ltv", "followup", "inactive"]:
+        if token in q:
+            scores["customer"] += 1
+    for token in ["artist", "artists", "commission", "sell through", "collector by artist"]:
+        if token in q:
+            scores["artist"] += 1
+    for token in ["vendor", "vendors", "supplier", "suppliers", "payable", "invoice", "spend"]:
+        if token in q:
+            scores["vendor"] += 1
+
+    winner = max(scores, key=lambda k: scores[k])
+    if scores[winner] <= 0:
+        return "sales"
+    return winner
+
+
+def _load_runtime_contracts() -> dict[str, list[dict[str, Any]]]:
+    contract_file = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "prompt_coverage",
+        "prompt_to_sql_contracts.json",
+    )
+    try:
+        with open(contract_file, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except Exception:
+        return {}
+
+    contracts = payload.get("contracts") if isinstance(payload, dict) else None
+    if not isinstance(contracts, list):
+        return {}
+
+    by_copilot: dict[str, list[dict[str, Any]]] = {
+        "sales": [],
+        "inventory": [],
+        "customer": [],
+        "artist": [],
+        "vendor": [],
+    }
+    for c in contracts:
+        if not isinstance(c, dict):
+            continue
+        cid = str(c.get("contract_id") or "")
+        if cid.startswith("sales_"):
+            by_copilot["sales"].append(c)
+        elif cid.startswith("inventory_"):
+            by_copilot["inventory"].append(c)
+        elif cid.startswith("contact_"):
+            by_copilot["customer"].append(c)
+        elif cid.startswith("artist_"):
+            by_copilot["artist"].append(c)
+        elif cid.startswith("vendor_"):
+            by_copilot["vendor"].append(c)
+    return by_copilot
+
+
+RUNTIME_CONTRACTS = _load_runtime_contracts()
+
+
+def _validate_runtime_contract(
+    *,
+    sql: str,
+    copilot: str | None,
+    applied_limit: int | None,
+    max_rows_default: int,
+) -> tuple[bool, dict[str, Any]]:
+    if not copilot:
+        return True, {"ok": True, "skipped": True}
+
+    contracts = RUNTIME_CONTRACTS.get(copilot, [])
+    if not contracts:
+        return True, {"ok": True, "skipped": True, "reason": "no_contracts_for_copilot"}
+
+    relations = _extract_sql_relations(sql)
+    allowed_relations: set[str] = set()
+    detail_max_limit = max_rows_default
+
+    for c in contracts:
+        rels = c.get("preferred_relations") or []
+        if isinstance(rels, list):
+            for rel in rels:
+                if isinstance(rel, str) and rel.strip():
+                    allowed_relations.add(rel.strip().lower())
+        if c.get("enforce_limit"):
+            c_max = c.get("max_limit")
+            if isinstance(c_max, int) and c_max > 0:
+                detail_max_limit = max(detail_max_limit, c_max)
+
+    violations: list[dict[str, Any]] = []
+    if relations and allowed_relations and not relations.intersection(allowed_relations):
+        violations.append(
+            {
+                "code": "relation_family_mismatch",
+                "message": "Query relations are outside expected copilot relation families.",
+                "relations": sorted(relations),
+                "allowed_relations": sorted(allowed_relations),
+            }
+        )
+
+    if applied_limit is not None and applied_limit > detail_max_limit:
+        violations.append(
+            {
+                "code": "limit_exceeds_contract",
+                "message": f"Applied LIMIT {applied_limit} exceeds allowed maximum {detail_max_limit}.",
+            }
+        )
+
+    return (
+        len(violations) == 0,
+        {
+            "ok": len(violations) == 0,
+            "copilot": copilot,
+            "relations": sorted(relations),
+            "violations": violations,
+        },
+    )
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/auth/login")
+def auth_login(req: LoginRequest) -> dict[str, Any]:
+    url = "https://v12-api.masterpiecemanager.com/signIn"
+    body = urlparse.urlencode(
+        {
+            "txt_company": req.txt_company,
+            "txt_username": req.txt_username,
+            "txt_password": req.txt_password,
+        }
+    ).encode("utf-8")
+    http_req = urlrequest.Request(url, data=body, method="POST")
+    http_req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    http_req.add_header("Accept", "application/json")
+
+    try:
+        with urlrequest.urlopen(http_req, timeout=20) as resp:
+            raw = resp.read().decode("utf-8")
+    except urlerror.HTTPError as e:
+        err_body = ""
+        try:
+            err_body = e.read().decode("utf-8")
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "upstream_login_failed",
+                "message": f"HTTP {e.code}",
+                "upstream_body": err_body,
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "upstream_login_failed",
+                "message": repr(e),
+            },
+        )
+
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        raise HTTPException(status_code=502, detail={"error": "invalid_login_response"})
+
+    if not payload.get("status"):
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "invalid_credentials",
+                "message": payload.get("message", "Login failed"),
+            },
+        )
+
+    data = payload.get("data") or {}
+    user_info = (data.get("userInfo") or [{}])[0] or {}
+    token = str(data.get("access_token") or "")
+    token_payload = _decode_jwt_payload_unverified(token) if token else {}
+
+    company_id = token_payload.get("company_id") or token_payload.get("idcompany")
+    try:
+        idcompany = int(company_id) if company_id is not None else None
+    except Exception:
+        idcompany = None
+
+    session = {
+        "access_token": token,
+        "token_payload": token_payload,
+        "idcompany": idcompany,
+        "company_name": token_payload.get("company_name"),
+        "username": user_info.get("username") or token_payload.get("username"),
+        "firstname": user_info.get("firstname") or token_payload.get("firstname"),
+        "lastname": user_info.get("lastname") or token_payload.get("lastname"),
+        "role_name": user_info.get("role"),
+        "role_id": token_payload.get("role"),
+        "userid": token_payload.get("userid") or user_info.get("id"),
+        "idcompany_location": token_payload.get("idcompany_location") or user_info.get("idcompany_location"),
+    }
+
+    return {
+        "status": True,
+        "message": payload.get("message", "Login Successful"),
+        "session": session,
+    }
+
+
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest) -> ChatResponse:
+    requested_copilot = (req.copilot or "").strip().lower() or None
+    if requested_copilot not in {None, "sales", "inventory", "customer", "artist", "vendor"}:
+        raise HTTPException(status_code=400, detail={"error": "invalid_copilot"})
+    selected_copilot = requested_copilot or _infer_copilot_from_question(req.question)
+
+    resolved_idcompany = req.idcompany
+    if req.access_token:
+        token_payload = _decode_jwt_payload_unverified(req.access_token)
+        token_company = token_payload.get("company_id") or token_payload.get("idcompany")
+        try:
+            token_company_int = int(token_company)
+        except Exception:
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "invalid_token", "message": "Could not resolve company_id from JWT token."},
+            )
+        if token_company_int != req.idcompany:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "company_mismatch",
+                    "message": "Request idcompany does not match JWT company_id.",
+                    "token_company_id": token_company_int,
+                    "request_idcompany": req.idcompany,
+                },
+            )
+        resolved_idcompany = token_company_int
+
     start = time.time()
+    request_id = str(uuid.uuid4())
+    server_ts_utc = datetime.now(timezone.utc).isoformat()
 
     generation_path = "llm"
     generation_error = None
-    query, generation_error = generate_query_with_llm(req.question)
+    query, generation_error = generate_query_with_llm(req.question, copilot=selected_copilot)
     if query is None:
         generation_path = "deterministic_fallback"
-        query = generate_query(req.question)
+        query = generate_query(req.question, copilot=selected_copilot)
 
     sql = query.sql
     matched_intent = query.intent
-    params = {**query.params, "idcompany": req.idcompany}
+    params = {**query.params, "idcompany": resolved_idcompany}
 
     guard = validate_select_sql(sql=sql, required_idcompany_param="idcompany")
     if not guard.ok:
         raise HTTPException(status_code=400, detail={"error": "sql_blocked", "guardrails": guard.model_dump()})
 
+    max_rows = int(os.getenv("MYSQL_MAX_ROWS", "200"))
+    contract_ok, contract_guardrails = _validate_runtime_contract(
+        sql=sql,
+        copilot=selected_copilot,
+        applied_limit=query.applied_limit,
+        max_rows_default=max_rows,
+    )
+    if not contract_ok:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "sql_blocked_contract", "contract_guardrails": contract_guardrails},
+        )
+
+    timeout_ms = int(os.getenv("MYSQL_QUERY_TIMEOUT_MS", "8000"))
+    retry_attempted = False
+    retry_success = False
     try:
-        max_rows = int(os.getenv("MYSQL_MAX_ROWS", "200"))
-        timeout_ms = int(os.getenv("MYSQL_QUERY_TIMEOUT_MS", "8000"))
         result: QueryResult = run_select_query(sql=sql, params=params, max_rows=max_rows, timeout_ms=timeout_ms)
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": "query_failed", "message": str(e)})
+        err_msg = str(e)
+        # One self-heal retry for common LLM SQL errors.
+        if generation_path == "llm" and (
+            "unknown column" in err_msg.lower() or "syntax" in err_msg.lower()
+        ):
+            retry_attempted = True
+            repaired_query, repair_err = generate_query_with_llm(
+                req.question,
+                copilot=selected_copilot,
+                error_context={"previous_sql": sql, "db_error": err_msg},
+            )
+            if repaired_query is not None:
+                repaired_sql = repaired_query.sql
+                repaired_params = {**repaired_query.params, "idcompany": resolved_idcompany}
+                repaired_guard = validate_select_sql(sql=repaired_sql, required_idcompany_param="idcompany")
+                if repaired_guard.ok:
+                    repaired_contract_ok, repaired_contract_guard = _validate_runtime_contract(
+                        sql=repaired_sql,
+                        copilot=selected_copilot,
+                        applied_limit=repaired_query.applied_limit,
+                        max_rows_default=max_rows,
+                    )
+                    if not repaired_contract_ok:
+                        raise HTTPException(
+                            status_code=400,
+                            detail={
+                                "error": "sql_blocked_contract_after_retry",
+                                "contract_guardrails": repaired_contract_guard,
+                            },
+                        )
+                    try:
+                        repaired_result: QueryResult = run_select_query(
+                            sql=repaired_sql,
+                            params=repaired_params,
+                            max_rows=max_rows,
+                            timeout_ms=timeout_ms,
+                        )
+                        # Promote repaired query to the active output/debug.
+                        sql = repaired_sql
+                        params = repaired_params
+                        query = repaired_query
+                        matched_intent = repaired_query.intent
+                        guard = repaired_guard
+                        contract_guardrails = repaired_contract_guard
+                        generation_error = repair_err
+                        result = repaired_result
+                        retry_success = True
+                    except Exception as e2:
+                        raise HTTPException(status_code=500, detail={"error": "query_failed", "message": str(e2)})
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={"error": "sql_blocked_after_retry", "guardrails": repaired_guard.model_dump()},
+                    )
+            else:
+                raise HTTPException(status_code=500, detail={"error": "query_failed", "message": err_msg})
+        else:
+            raise HTTPException(status_code=500, detail={"error": "query_failed", "message": err_msg})
 
     elapsed_ms = int((time.time() - start) * 1000)
 
@@ -126,6 +493,8 @@ def chat(req: ChatRequest) -> ChatResponse:
     debug = None
     if req.debug:
         debug = DebugInfo(
+            request_id=request_id,
+            server_ts_utc=server_ts_utc,
             input_question=req.question,
             matched_intent=matched_intent,
             router_model=os.getenv("OPENAI_MODEL_ROUTER"),
@@ -141,6 +510,11 @@ def chat(req: ChatRequest) -> ChatResponse:
             window_label=query.window_label,
             generation_path=generation_path,
             generation_error=generation_error,
+            retry_attempted=retry_attempted,
+            retry_success=retry_success,
+            resolved_idcompany=resolved_idcompany,
+            selected_copilot=selected_copilot,
+            contract_guardrails=contract_guardrails,
         )
 
     return ChatResponse(answer=answer, data=result.rows, debug=debug)

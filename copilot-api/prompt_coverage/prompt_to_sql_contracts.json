@@ -1,5 +1,5 @@
 {
-  "version": "v1",
+  "version": "v2",
   "contracts": [
     {
       "contract_id": "sales_header_aggregate",
@@ -64,6 +64,86 @@
       ],
       "result_type": "kpi_or_trend",
       "enforce_limit": false
+    },
+    {
+      "contract_id": "contact_aggregate",
+      "required_filters": [
+        "idcompany"
+      ],
+      "preferred_relations": [
+        "company_contact_data1",
+        "company_contact"
+      ],
+      "result_type": "kpi_or_trend",
+      "enforce_limit": false
+    },
+    {
+      "contract_id": "contact_detail",
+      "required_filters": [
+        "idcompany"
+      ],
+      "preferred_relations": [
+        "company_contact_data1"
+      ],
+      "result_type": "table",
+      "enforce_limit": true,
+      "default_limit": 25,
+      "max_limit": 200
+    },
+    {
+      "contract_id": "artist_aggregate",
+      "required_filters": [
+        "idcompany"
+      ],
+      "preferred_relations": [
+        "company_sale_data",
+        "company_item_data",
+        "company_artist"
+      ],
+      "result_type": "kpi_or_trend",
+      "enforce_limit": false
+    },
+    {
+      "contract_id": "artist_detail",
+      "required_filters": [
+        "idcompany"
+      ],
+      "preferred_relations": [
+        "company_sale_data",
+        "company_item_data"
+      ],
+      "result_type": "table",
+      "enforce_limit": true,
+      "default_limit": 25,
+      "max_limit": 200
+    },
+    {
+      "contract_id": "vendor_aggregate",
+      "required_filters": [
+        "idcompany"
+      ],
+      "preferred_relations": [
+        "company_vendor",
+        "company_contact_data1",
+        "company_sale_data"
+      ],
+      "result_type": "kpi_or_trend",
+      "enforce_limit": false
+    },
+    {
+      "contract_id": "vendor_detail",
+      "required_filters": [
+        "idcompany"
+      ],
+      "preferred_relations": [
+        "company_vendor",
+        "company_contact_data1",
+        "company_sale_payment"
+      ],
+      "result_type": "table",
+      "enforce_limit": true,
+      "default_limit": 25,
+      "max_limit": 200
     }
   ]
 }

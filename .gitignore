@@ -32,3 +32,4 @@ Thumbs.db
 # Local artifacts
 terminals/
 agent-transcripts/
+copilot-api/tests/output/

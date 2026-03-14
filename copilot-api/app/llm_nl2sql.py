@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any
+from typing import Any, Literal
 
 from .nl2sql_engine import QuerySpec
 
@@ -27,6 +27,41 @@ Mandatory constraints:
 - Must include tenant filter: idcompany = %(idcompany)s
 - Never include INSERT/UPDATE/DELETE/ALTER/DROP/TRUNCATE.
 """.strip()
+
+COPILOT_TYPES = {"sales", "inventory", "customer", "artist", "vendor"}
+
+COPILOT_CONTEXT: dict[str, str] = {
+    "sales": """
+Sales focus:
+- Prefer company_sale and company_sale_data.
+- Revenue = SUM(company_sale.total), tax inclusive.
+- TotalSales = SUM(company_sale_data.LineTotal), tax exclusive.
+""".strip(),
+    "inventory": """
+Inventory focus:
+- Prefer company_item and company_item_data.
+- Use qoh, artprice, art_cost, edition_type where relevant.
+- For inventory detail asks, return item-level rows with sensible LIMIT.
+""".strip(),
+    "customer": """
+Customer focus:
+- Prefer company_contact_data1 and company_sale/company_sale_data.
+- Customer identity fields: idcompany_contact, full_name, CustomerName.
+- Typical asks: LTV/top customers, overdue balances, inactive customers.
+""".strip(),
+    "artist": """
+Artist focus:
+- Prefer company_sale_data and company_item_data.
+- Artist identity fields: idcompany_artist, ArtistName.
+- Typical asks: artist sales performance, top collectors, returns profile.
+""".strip(),
+    "vendor": """
+Vendor focus:
+- Prefer company_vendor, company_contact_data1, and payable-like views.
+- Typical asks: outstanding payables, overdue invoices, spend trend.
+- Keep output strictly read-only aggregate/detail SELECTs.
+""".strip(),
+}
 
 
 def _extract_requested_limit(question: str) -> int | None:
@@ -181,10 +216,46 @@ def _enforce_shared_edition_predicate(sql: str) -> str:
     return f"{out[:start]}{replacement}{out[end:]}"
 
 
+def _repair_dangling_boolean_tokens(sql: str) -> str:
+    """
+    Repair malformed boolean fragments occasionally emitted by LLMs, e.g.:
+      ... AND )
+      ... OR )
+      ... )GROUP BY ...
+    Keep this narrowly scoped to avoid changing valid SQL behavior.
+    """
+    out = sql
+    # Remove boolean operator immediately before ')'
+    out = re.sub(r"(?i)\b(?:and|or)\b\s*(?=\))", "", out)
+    # Remove accidental operator right after '('
+    out = re.sub(r"(?i)\(\s*(?:and|or)\b\s*", "(", out)
+    # Remove trailing operator before clause boundaries/end
+    out = re.sub(r"(?i)\b(?:and|or)\b\s*(?=(group\s+by|order\s+by|limit)\b|$)", "", out)
+    # Ensure separator after ')' before major clauses
+    out = re.sub(r"(?i)\)\s*(group\s+by|order\s+by|limit)\b", r") \1", out)
+    # Clean accidental empty grouping parentheses, but keep function calls like NOW()/CURDATE().
+    out = re.sub(r"(?<![A-Za-z0-9_])\(\s*\)", "", out)
+    out = re.sub(r"\s{2,}", " ", out).strip()
+    return out
+
+
+def _repair_common_datetime_function_calls(sql: str) -> str:
+    """
+    Repair common LLM slips where MySQL date/time functions are emitted
+    without parentheses (e.g., CURDATE instead of CURDATE()).
+    """
+    out = sql
+    out = re.sub(r"(?i)\bcurdate\b(?!\s*\()", "CURDATE()", out)
+    out = re.sub(r"(?i)\bnow\b(?!\s*\()", "NOW()", out)
+    return out
+
+
 def _sanitize_sql(sql: str, max_limit: int) -> str:
     out = sql.strip().strip("`").rstrip(";")
     out = _normalize_idcompany_placeholders(out)
     out = _repair_common_column_aliases(out)
+    out = _repair_common_datetime_function_calls(out)
+    out = _repair_dangling_boolean_tokens(out)
     out = _inject_tenant_filter(out)
     out = _enforce_or_parentheses_scope(out)
     out = _enforce_shared_edition_predicate(out)
@@ -203,7 +274,11 @@ def _extract_json_payload(text: str) -> dict[str, Any]:
     return json.loads(text)
 
 
-def generate_query_with_llm(question: str) -> tuple[QuerySpec | None, str | None]:
+def generate_query_with_llm(
+    question: str,
+    copilot: Literal["sales", "inventory", "customer", "artist", "vendor"] | None = None,
+    error_context: dict[str, str] | None = None,
+) -> tuple[QuerySpec | None, str | None]:
     if os.getenv("AI_FIRST_SQL_ENABLED", "1") not in {"1", "true", "TRUE", "yes", "YES"}:
         return None, "ai_first_sql_disabled"
 
@@ -217,15 +292,21 @@ def generate_query_with_llm(question: str) -> tuple[QuerySpec | None, str | None
         client = OpenAI(api_key=api_key)
         model = os.getenv("OPENAI_MODEL_SQL", "gpt-4.1")
         max_limit = int(os.getenv("MYSQL_MAX_ROWS", "200"))
+        selected_copilot = (copilot or "").strip().lower()
+        if selected_copilot not in COPILOT_TYPES:
+            selected_copilot = "sales"
+        copilot_context = COPILOT_CONTEXT.get(selected_copilot, COPILOT_CONTEXT["sales"])
 
         system_prompt = f"""
 You are an expert MySQL NL2SQL generator for an art-gallery ERP.
+Selected copilot: {selected_copilot}
 Return ONLY valid JSON with keys:
 - intent: string
 - sql: string
 - window_label: string (optional)
 
 {SCHEMA_CONTEXT}
+{copilot_context}
 
 Rules:
 - SQL must be a single SELECT statement.
@@ -239,15 +320,27 @@ Rules:
   - For sold-item queries from company_sale_data, do NOT use `edition_type`.
   - Use `EditionName` or `item_edition_type` in company_sale_data.
   - `edition_type` exists in company_item/company_item_data context.
+- Set `intent` to a copilot-prefixed value (e.g. {selected_copilot}_something).
 - Do not include comments, markdown, or explanations outside JSON.
 """.strip()
+
+        user_prompt = question
+        if error_context:
+            prev_sql = error_context.get("previous_sql", "")
+            db_error = error_context.get("db_error", "")
+            user_prompt = (
+                f"{question}\n\n"
+                "Previous SQL failed. Regenerate a corrected SQL query.\n"
+                f"Previous SQL:\n{prev_sql}\n\n"
+                f"Database error:\n{db_error}\n"
+            )
 
         response = client.chat.completions.create(
             model=model,
             temperature=0,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question},
+                {"role": "user", "content": user_prompt},
             ],
             response_format={"type": "json_object"},
         )

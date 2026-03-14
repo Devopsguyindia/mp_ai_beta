@@ -11,3 +11,22 @@ Implementation approach:
 
 In local Windows development, the service will use the system temp folder equivalent.
 
+## Prompt regression runner
+
+Run the generated prompt set against a running API:
+
+```bash
+python "copilot-api/tests/prompt_regression_runner.py" --idcompany 212
+```
+
+Optional quick run:
+
+```bash
+python "copilot-api/tests/prompt_regression_runner.py" --idcompany 212 --max-prompts 50
+```
+
+Outputs:
+
+- `copilot-api/tests/output/regression-summary-<timestamp>.json`
+- `copilot-api/tests/output/regression-failures-<timestamp>.csv`
+

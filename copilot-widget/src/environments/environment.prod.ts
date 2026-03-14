@@ -1,3 +1,4 @@
 export const environment = {
-  production: true
+  production: true,
+  copilotApiBaseUrl: 'http://localhost:8001'
 };

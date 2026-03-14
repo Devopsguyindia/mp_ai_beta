@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass(frozen=True)
@@ -17,6 +17,7 @@ class QuerySpec:
 
 MAX_LIMIT = 200
 DEFAULT_LIMIT = 10
+COPILOT_TYPES = {"sales", "inventory", "customer", "artist", "vendor"}
 
 
 def _normalize(text: str) -> str:
@@ -54,7 +55,31 @@ def _score(q: str, words: list[str]) -> int:
     return sum(1 for w in words if w in q)
 
 
-def _detect_intent(q: str) -> str:
+def _detect_intent(q: str, copilot: Literal["sales", "inventory", "customer", "artist", "vendor"] | None = None) -> str:
+    if copilot == "customer":
+        customer_candidates = {
+            "customer_top_by_ltv": _score(q, ["top", "customer", "customers", "ltv", "revenue", "buyer", "buyers"]),
+            "customer_overdue_balances": _score(q, ["overdue", "balance", "balances", "due", "outstanding"]),
+            "customer_followup_candidates": _score(q, ["inactive", "followup", "follow-up", "no purchase", "stale"]),
+        }
+        return max(customer_candidates, key=lambda k: customer_candidates[k])
+
+    if copilot == "artist":
+        artist_candidates = {
+            "artist_sales_performance": _score(q, ["artist", "artists", "top", "sales", "performance"]),
+            "artist_top_collectors": _score(q, ["artist", "collector", "collectors", "customer", "buyers"]),
+            "artist_returns_profile": _score(q, ["artist", "return", "returns"]),
+        }
+        return max(artist_candidates, key=lambda k: artist_candidates[k])
+
+    if copilot == "vendor":
+        vendor_candidates = {
+            "vendor_outstanding_payables": _score(q, ["vendor", "payable", "payables", "outstanding", "due"]),
+            "vendor_overdue_invoices": _score(q, ["vendor", "overdue", "invoice", "invoices"]),
+            "vendor_spend_trend": _score(q, ["vendor", "spend", "trend", "month", "monthly"]),
+        }
+        return max(vendor_candidates, key=lambda k: vendor_candidates[k])
+
     candidates = {
         "recent_sold_items": _score(q, ["sold", "item", "recent", "latest", "last"]),
         "top_customers_by_revenue": _score(q, ["top", "customer", "customers", "revenue", "buyer", "buyers"]),
@@ -76,11 +101,242 @@ def _detect_intent(q: str) -> str:
     return intent
 
 
-def generate_query(question: str) -> QuerySpec:
+def generate_query(
+    question: str,
+    copilot: Literal["sales", "inventory", "customer", "artist", "vendor"] | None = None,
+) -> QuerySpec:
     q = _normalize(question)
+    if copilot not in COPILOT_TYPES:
+        copilot = None
     limit, requested_limit = _extract_limit(q)
     window_expr, window_label = _extract_window_expr(q)
-    intent = _detect_intent(q)
+    intent = _detect_intent(q, copilot=copilot)
+
+    if intent == "customer_top_by_ltv":
+        return QuerySpec(
+            intent=intent,
+            sql=f"""
+            SELECT
+              s.idcompany_customer AS idcompany_contact,
+              c.full_name AS customer_name,
+              ROUND(SUM(s.total), 2) AS lifetime_revenue_gross
+            FROM company_sale s
+            LEFT JOIN company_contact_data1 c
+              ON c.idcompany_contact = s.idcompany_customer
+             AND c.idcompany = s.idcompany
+            WHERE s.idcompany = %(idcompany)s
+              AND s.is_sale = 1
+              AND COALESCE(s.isreturned, 0) = 0
+            GROUP BY s.idcompany_customer, c.full_name
+            ORDER BY lifetime_revenue_gross DESC
+            LIMIT {limit}
+            """.strip(),
+            params={},
+            requested_limit=requested_limit,
+            applied_limit=limit,
+            window_label="lifetime",
+        )
+
+    if intent == "customer_overdue_balances":
+        return QuerySpec(
+            intent=intent,
+            sql=f"""
+            SELECT
+              s.idcompany_customer AS idcompany_contact,
+              c.full_name AS customer_name,
+              ROUND(SUM(p.amount_due - COALESCE(p.amount_paid, 0)), 2) AS overdue_balance
+            FROM company_sale_payment p
+            JOIN company_sale s
+              ON s.idcompany_sale = p.idcompany_sale
+             AND s.idcompany = p.idcompany
+            LEFT JOIN company_contact_data1 c
+              ON c.idcompany_contact = s.idcompany_customer
+             AND c.idcompany = s.idcompany
+            WHERE p.idcompany = %(idcompany)s
+              AND p.date_paid IS NULL
+              AND p.date_due < NOW()
+            GROUP BY s.idcompany_customer, c.full_name
+            ORDER BY overdue_balance DESC
+            LIMIT {limit}
+            """.strip(),
+            params={},
+            requested_limit=requested_limit,
+            applied_limit=limit,
+            window_label=window_label,
+        )
+
+    if intent == "customer_followup_candidates":
+        return QuerySpec(
+            intent=intent,
+            sql=f"""
+            SELECT
+              c.idcompany_contact,
+              c.full_name AS customer_name,
+              MAX(s.sale_date) AS last_purchase_date,
+              ROUND(COALESCE(SUM(s.total), 0), 2) AS lifetime_revenue_gross
+            FROM company_contact_data1 c
+            LEFT JOIN company_sale s
+              ON s.idcompany_customer = c.idcompany_contact
+             AND s.idcompany = c.idcompany
+             AND s.is_sale = 1
+             AND COALESCE(s.isreturned, 0) = 0
+            WHERE c.idcompany = %(idcompany)s
+            GROUP BY c.idcompany_contact, c.full_name
+            HAVING last_purchase_date IS NULL OR last_purchase_date < DATE_SUB(NOW(), INTERVAL 90 DAY)
+            ORDER BY lifetime_revenue_gross DESC
+            LIMIT {limit}
+            """.strip(),
+            params={},
+            requested_limit=requested_limit,
+            applied_limit=limit,
+            window_label="inactive_90_days",
+        )
+
+    if intent == "artist_sales_performance":
+        return QuerySpec(
+            intent=intent,
+            sql=f"""
+            SELECT
+              d.idcompany_artist,
+              d.ArtistName,
+              ROUND(SUM(d.LineTotal), 2) AS total_sales_net
+            FROM company_sale_data d
+            WHERE d.idcompany = %(idcompany)s
+              AND d.is_sale = 1
+              AND COALESCE(d.SaleReturned, 0) = 0
+              AND d.sale_date >= {window_expr}
+            GROUP BY d.idcompany_artist, d.ArtistName
+            ORDER BY total_sales_net DESC
+            LIMIT {limit}
+            """.strip(),
+            params={},
+            requested_limit=requested_limit,
+            applied_limit=limit,
+            window_label=window_label,
+        )
+
+    if intent == "artist_top_collectors":
+        return QuerySpec(
+            intent=intent,
+            sql=f"""
+            SELECT
+              d.ArtistName,
+              d.CustomerName,
+              ROUND(SUM(d.LineTotal), 2) AS total_sales_net
+            FROM company_sale_data d
+            WHERE d.idcompany = %(idcompany)s
+              AND d.is_sale = 1
+              AND COALESCE(d.SaleReturned, 0) = 0
+              AND d.sale_date >= {window_expr}
+            GROUP BY d.ArtistName, d.CustomerName
+            ORDER BY total_sales_net DESC
+            LIMIT {limit}
+            """.strip(),
+            params={},
+            requested_limit=requested_limit,
+            applied_limit=limit,
+            window_label=window_label,
+        )
+
+    if intent == "artist_returns_profile":
+        return QuerySpec(
+            intent=intent,
+            sql=f"""
+            SELECT
+              d.ArtistName,
+              COUNT(*) AS returned_line_count,
+              ROUND(SUM(d.LineTotal), 2) AS returned_amount_net
+            FROM company_sale_data d
+            WHERE d.idcompany = %(idcompany)s
+              AND COALESCE(d.SaleReturned, 0) = 1
+              AND d.sale_date >= {window_expr}
+            GROUP BY d.ArtistName
+            ORDER BY returned_amount_net DESC
+            LIMIT {limit}
+            """.strip(),
+            params={},
+            requested_limit=requested_limit,
+            applied_limit=limit,
+            window_label=window_label,
+        )
+
+    if intent == "vendor_outstanding_payables":
+        return QuerySpec(
+            intent=intent,
+            sql=f"""
+            SELECT
+              s.idcompany_customer AS idcompany_vendor,
+              c.full_name AS vendor_name,
+              ROUND(SUM(p.amount_due - COALESCE(p.amount_paid, 0)), 2) AS outstanding_amount
+            FROM company_sale_payment p
+            JOIN company_sale s
+              ON s.idcompany_sale = p.idcompany_sale
+             AND s.idcompany = p.idcompany
+            LEFT JOIN company_contact_data1 c
+              ON c.idcompany_contact = s.idcompany_customer
+             AND c.idcompany = s.idcompany
+            WHERE p.idcompany = %(idcompany)s
+              AND p.date_paid IS NULL
+            GROUP BY s.idcompany_customer, c.full_name
+            ORDER BY outstanding_amount DESC
+            LIMIT {limit}
+            """.strip(),
+            params={},
+            requested_limit=requested_limit,
+            applied_limit=limit,
+            window_label=window_label,
+        )
+
+    if intent == "vendor_overdue_invoices":
+        return QuerySpec(
+            intent=intent,
+            sql=f"""
+            SELECT
+              p.idcompany_sale,
+              s.idcompany_customer AS idcompany_vendor,
+              c.full_name AS vendor_name,
+              p.date_due,
+              ROUND(p.amount_due - COALESCE(p.amount_paid, 0), 2) AS overdue_amount
+            FROM company_sale_payment p
+            JOIN company_sale s
+              ON s.idcompany_sale = p.idcompany_sale
+             AND s.idcompany = p.idcompany
+            LEFT JOIN company_contact_data1 c
+              ON c.idcompany_contact = s.idcompany_customer
+             AND c.idcompany = s.idcompany
+            WHERE p.idcompany = %(idcompany)s
+              AND p.date_paid IS NULL
+              AND p.date_due < NOW()
+            ORDER BY overdue_amount DESC, p.date_due ASC
+            LIMIT {limit}
+            """.strip(),
+            params={},
+            requested_limit=requested_limit,
+            applied_limit=limit,
+            window_label=window_label,
+        )
+
+    if intent == "vendor_spend_trend":
+        return QuerySpec(
+            intent=intent,
+            sql=f"""
+            SELECT
+              DATE_FORMAT(s.sale_date, '%Y-%m') AS month_key,
+              ROUND(SUM(s.total), 2) AS spend_gross
+            FROM company_sale s
+            WHERE s.idcompany = %(idcompany)s
+              AND s.is_sale = 1
+              AND COALESCE(s.isreturned, 0) = 0
+              AND s.sale_date >= {window_expr}
+            GROUP BY DATE_FORMAT(s.sale_date, '%Y-%m')
+            ORDER BY month_key
+            LIMIT {limit}
+            """.strip(),
+            params={},
+            requested_limit=requested_limit,
+            applied_limit=limit,
+            window_label=window_label,
+        )
 
     if intent == "recent_sold_items":
         return QuerySpec(

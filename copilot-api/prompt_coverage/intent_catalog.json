@@ -1,5 +1,5 @@
 {
-  "version": "v1",
+  "version": "v2",
   "copilots": {
     "sales": [
       "sales_recent_sold_items",
@@ -24,6 +24,42 @@
       "inventory_missing_data",
       "inventory_edition_mix",
       "inventory_recent_additions"
+    ],
+    "customer": [
+      "customer_top_by_ltv",
+      "customer_inactive_high_value",
+      "customer_new_acquisitions",
+      "customer_repeat_rate",
+      "customer_overdue_balances",
+      "customer_conversion_funnel",
+      "customer_interest_by_artist",
+      "customer_followup_candidates",
+      "customer_segment_performance",
+      "customer_contact_data_quality"
+    ],
+    "artist": [
+      "artist_sales_performance",
+      "artist_sell_through_rate",
+      "artist_inventory_aging",
+      "artist_price_band_performance",
+      "artist_top_collectors",
+      "artist_discount_risk",
+      "artist_commission_due",
+      "artist_exhibition_performance",
+      "artist_time_to_sell",
+      "artist_returns_profile"
+    ],
+    "vendor": [
+      "vendor_outstanding_payables",
+      "vendor_spend_trend",
+      "vendor_turnaround_comparison",
+      "vendor_rework_rate",
+      "vendor_shipment_cost_trend",
+      "vendor_overdue_invoices",
+      "vendor_duplicate_invoices",
+      "vendor_service_overlap",
+      "vendor_quality_anomalies",
+      "vendor_commitments_upcoming"
     ]
   }
 }

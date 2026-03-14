@@ -1,9 +1,12 @@
 {
-  "version": "v1",
-  "generated_prompt_count": 300,
+  "version": "v2",
+  "generated_prompt_count": 750,
   "copilot_distribution": {
     "sales": 150,
-    "inventory": 150
+    "inventory": 150,
+    "customer": 150,
+    "artist": 150,
+    "vendor": 150
   },
   "files": [
     "intent_catalog.json",
