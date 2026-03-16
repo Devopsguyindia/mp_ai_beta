@@ -15,6 +15,7 @@ export interface SessionInfo {
   role_id?: string | null;
   userid?: string | null;
   idcompany_location?: string | null;
+  location_name?: string | null;
 }
 
 export interface LoginResponse {

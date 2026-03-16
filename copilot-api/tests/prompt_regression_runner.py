@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import socket
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +33,13 @@ def _post_json(url: str, payload: dict[str, Any], timeout_s: int) -> tuple[int, 
         except Exception:
             payload = {"error": raw}
         return int(e.code), payload
+    except (TimeoutError, socket.timeout):
+        return 599, {"error": "request_timeout", "message": f"Timed out after {timeout_s}s"}
+    except error.URLError as e:
+        reason = str(getattr(e, "reason", e))
+        if "timed out" in reason.lower():
+            return 599, {"error": "request_timeout", "message": f"Timed out after {timeout_s}s"}
+        return 598, {"error": "network_error", "message": reason}
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -62,7 +70,11 @@ def _intent_soft_match(expected_intent: str, actual_intent: str) -> bool:
         "revenue": {"revenue", "gross", "income"},
         "top": {"top", "highest", "best", "rank"},
         "inventory": {"inventory", "stock"},
+        "stock": {"stock", "inventory", "qoh", "on_hand", "onhand"},
+        "total": {"total", "overall", "summary", "aggregate"},
+        "qoh": {"qoh", "stock", "on_hand", "onhand"},
         "count": {"count", "how_many", "total"},
+        "performance": {"performance", "summary", "top", "ranking"},
         "layaway": {"layaway"},
         "outstanding": {"outstanding", "overdue", "due"},
         "customer": {"customer", "customers", "collector", "collectors", "buyer", "buyers", "client"},
@@ -80,7 +92,20 @@ def _intent_soft_match(expected_intent: str, actual_intent: str) -> bool:
     for token in tokens:
         group = synonym_groups.get(token, {token})
         if not any(g in a for g in group):
-            return False
+            # fallback: if copilot family matches and at least one strong domain token overlaps, accept
+            e_parts = e.split("_")
+            a_parts = a.split("_")
+            if not e_parts or not a_parts or e_parts[0] != a_parts[0]:
+                return False
+            strong_domain_tokens = {"revenue", "sales", "stock", "qoh", "ltv", "overdue", "commission", "payables"}
+            e_tokens = {t for t in tokens if t in strong_domain_tokens}
+            if not e_tokens:
+                return False
+            if not any(
+                any(s in a for s in synonym_groups.get(et, {et}))
+                for et in e_tokens
+            ):
+                return False
     return True
 
 

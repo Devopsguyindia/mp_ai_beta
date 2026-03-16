@@ -82,6 +82,7 @@ class DebugInfo(BaseModel):
     retry_success: bool | None = None
     resolved_idcompany: int | None = None
     selected_copilot: str | None = None
+    routed_intent: str | None = None
     contract_guardrails: dict[str, Any] | None = None
 
 
@@ -136,35 +137,37 @@ def _extract_sql_relations(sql: str) -> set[str]:
     return {m.lower() for m in matches}
 
 
-def _infer_copilot_from_question(question: str) -> str:
+def _infer_routed_intent_from_question(question: str) -> str:
     q = question.lower()
-    scores = {
-        "sales": 0,
-        "inventory": 0,
-        "customer": 0,
-        "artist": 0,
-        "vendor": 0,
-    }
-    for token in ["sale", "sales", "sold", "revenue", "quote", "approval", "layaway", "return"]:
-        if token in q:
-            scores["sales"] += 1
-    for token in ["inventory", "stock", "qoh", "aging", "unsold", "reorder", "turnover"]:
-        if token in q:
-            scores["inventory"] += 1
-    for token in ["customer", "customers", "buyer", "collector", "ltv", "followup", "inactive"]:
-        if token in q:
-            scores["customer"] += 1
-    for token in ["artist", "artists", "commission", "sell through", "collector by artist"]:
-        if token in q:
-            scores["artist"] += 1
-    for token in ["vendor", "vendors", "supplier", "suppliers", "payable", "invoice", "spend"]:
-        if token in q:
-            scores["vendor"] += 1
+    intent_signals: list[tuple[str, list[str]]] = [
+        ("sales_layaway_outstanding", ["layaway", "receivable", "overdue", "due", "installment"]),
+        ("inventory_total_stock", ["inventory", "stock", "qoh", "on hand", "unsold"]),
+        ("customer_top_by_ltv", ["customer", "customers", "buyer", "buyers", "collector", "ltv", "followup", "inactive"]),
+        ("artist_sales_performance", ["artist", "artists", "commission", "sell through"]),
+        ("vendor_outstanding_payables", ["vendor", "vendors", "supplier", "suppliers", "payable", "invoice", "spend"]),
+        ("sales_count_and_revenue", ["sale", "sales", "sold", "revenue", "quote", "approval", "return"]),
+    ]
+    best_intent = "sales_count_and_revenue"
+    best_score = 0
+    for intent, signals in intent_signals:
+        score = sum(1 for token in signals if token in q)
+        if score > best_score:
+            best_score = score
+            best_intent = intent
+    return best_intent
 
-    winner = max(scores, key=lambda k: scores[k])
-    if scores[winner] <= 0:
-        return "sales"
-    return winner
+
+def _copilot_from_intent(intent: str) -> str:
+    i = intent.strip().lower()
+    if i.startswith("inventory_"):
+        return "inventory"
+    if i.startswith("customer_"):
+        return "customer"
+    if i.startswith("artist_"):
+        return "artist"
+    if i.startswith("vendor_"):
+        return "vendor"
+    return "sales"
 
 
 def _load_runtime_contracts() -> dict[str, list[dict[str, Any]]]:
@@ -351,6 +354,7 @@ def auth_login(req: LoginRequest) -> dict[str, Any]:
         "role_id": token_payload.get("role"),
         "userid": token_payload.get("userid") or user_info.get("id"),
         "idcompany_location": token_payload.get("idcompany_location") or user_info.get("idcompany_location"),
+        "location_name": user_info.get("location_name") or token_payload.get("location_name"),
     }
 
     return {
@@ -365,7 +369,8 @@ def chat(req: ChatRequest) -> ChatResponse:
     requested_copilot = (req.copilot or "").strip().lower() or None
     if requested_copilot not in {None, "sales", "inventory", "customer", "artist", "vendor"}:
         raise HTTPException(status_code=400, detail={"error": "invalid_copilot"})
-    selected_copilot = requested_copilot or _infer_copilot_from_question(req.question)
+    routed_intent = _infer_routed_intent_from_question(req.question)
+    selected_copilot = requested_copilot or _copilot_from_intent(routed_intent)
 
     resolved_idcompany = req.idcompany
     if req.access_token:
@@ -416,10 +421,12 @@ def chat(req: ChatRequest) -> ChatResponse:
         applied_limit=query.applied_limit,
         max_rows_default=max_rows,
     )
+    # Contract checks are advisory now. Hard blocking remains in SQL safety guardrails.
     if not contract_ok:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "sql_blocked_contract", "contract_guardrails": contract_guardrails},
+        generation_error = (
+            f"{generation_error}; contract_warning"
+            if generation_error
+            else "contract_warning"
         )
 
     timeout_ms = int(os.getenv("MYSQL_QUERY_TIMEOUT_MS", "8000"))
@@ -451,12 +458,10 @@ def chat(req: ChatRequest) -> ChatResponse:
                         max_rows_default=max_rows,
                     )
                     if not repaired_contract_ok:
-                        raise HTTPException(
-                            status_code=400,
-                            detail={
-                                "error": "sql_blocked_contract_after_retry",
-                                "contract_guardrails": repaired_contract_guard,
-                            },
+                        generation_error = (
+                            f"{generation_error}; contract_warning_after_retry"
+                            if generation_error
+                            else "contract_warning_after_retry"
                         )
                     try:
                         repaired_result: QueryResult = run_select_query(
@@ -514,6 +519,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             retry_success=retry_success,
             resolved_idcompany=resolved_idcompany,
             selected_copilot=selected_copilot,
+            routed_intent=routed_intent,
             contract_guardrails=contract_guardrails,
         )
 

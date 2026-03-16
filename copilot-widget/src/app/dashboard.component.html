@@ -25,15 +25,18 @@
         <div class="widgetValue">{{ session?.role_name || 'User' }}</div>
       </div>
       <div class="widget">
-        <div class="widgetLabel">Copilot</div>
-        <div class="widgetValue">{{ selectedCopilotLabel | titlecase }}</div>
+        <div class="widgetLabel">Prompt History</div>
+        <div class="widgetValue">{{ promptHistoryCount }}</div>
+      </div>
+      <div class="widget">
+        <div class="widgetLabel">Location</div>
+        <div class="widgetValue">{{ session?.location_name || 'N/A' }}</div>
       </div>
     </section>
 
     <section class="topPanels">
       <section class="panel mainPanel">
         <div class="controls">
-          <div class="idBox">idcompany: {{ session?.idcompany }}</div>
           <label class="checkbox">
             <input type="checkbox" [(ngModel)]="debug" />
             <span>Show work (debug)</span>
@@ -64,6 +67,10 @@
           <div class="hintCard">
             <div class="hintTitle">Intent</div>
             <div class="hintValue">{{ intentCardValue }}</div>
+          </div>
+          <div class="hintCard">
+            <div class="hintTitle">Auto Copilot</div>
+            <div class="hintValue">{{ selectedCopilotLabel | titlecase }}</div>
           </div>
         </div>
       </section>

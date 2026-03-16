@@ -41,17 +41,65 @@ export class DashboardComponent implements OnInit {
     this.loadHistory();
   }
 
-  private historyKey(): string {
+  private historyScopeStable(): string {
     if (!this.session) {
-      return 'copilotPromptHistory';
+      return 'anonymous';
     }
-    return `copilotPromptHistory_${this.session.idcompany}_${this.session.userid || this.session.username || 'user'}`;
+    return [
+      this.session.idcompany ?? 'no_company',
+      this.session.userid || this.session.token_payload?.userid || 'no_userid',
+      this.session.username || 'no_username'
+    ].join('_');
+  }
+
+  private historyKey(): string {
+    return `copilotPromptHistory_${this.historyScopeStable()}`;
+  }
+
+  private legacyHistoryKeys(): string[] {
+    if (!this.session) {
+      return ['copilotPromptHistory'];
+    }
+    const idcompany = this.session.idcompany ?? 'no_company';
+    const userid = this.session.userid || this.session.token_payload?.userid || 'no_userid';
+    const username = this.session.username || 'no_username';
+    const tokenSuffix = this.session.access_token ? this.session.access_token.slice(-10) : 'no_token';
+    return [
+      // immediate previous key format (included access token suffix)
+      `copilotPromptHistory_${idcompany}_${userid}_${username}_${tokenSuffix}`,
+      // older per-user format used before token-suffixed key
+      `copilotPromptHistory_${idcompany}_${userid}`,
+      `copilotPromptHistory_${idcompany}_${username}`,
+      // oldest generic key
+      'copilotPromptHistory'
+    ];
   }
 
   private loadHistory(): void {
     try {
-      const raw = localStorage.getItem(this.historyKey());
-      this.history = raw ? (JSON.parse(raw) as string[]) : [];
+      const stableKey = this.historyKey();
+      const raw = localStorage.getItem(stableKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        this.history = Array.isArray(parsed) ? (parsed as string[]) : [];
+        return;
+      }
+
+      for (const legacyKey of this.legacyHistoryKeys()) {
+        const legacyRaw = localStorage.getItem(legacyKey);
+        if (!legacyRaw) {
+          continue;
+        }
+        const parsed = JSON.parse(legacyRaw);
+        if (!Array.isArray(parsed)) {
+          continue;
+        }
+        const migrated = parsed as string[];
+        this.history = migrated;
+        localStorage.setItem(stableKey, JSON.stringify(migrated));
+        return;
+      }
+      this.history = [];
     } catch {
       this.history = [];
     }
@@ -130,6 +178,10 @@ export class DashboardComponent implements OnInit {
 
   get selectedCopilotLabel(): string {
     return this.response?.debug?.selected_copilot || 'auto';
+  }
+
+  get promptHistoryCount(): number {
+    return this.history.length;
   }
 }
 
