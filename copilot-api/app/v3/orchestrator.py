@@ -69,7 +69,13 @@ def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
     timeout_ms = int(os.getenv("MYSQL_QUERY_TIMEOUT_MS", "8000"))
     result = run_select_query(sql=validated.sql, params=params, max_rows=max_rows, timeout_ms=timeout_ms)
 
-    insights = build_insights(rows=result.rows, question=req.question)
+    insights = build_insights(
+        rows=result.rows,
+        question=req.question,
+        sql=validated.sql,
+        intent=sql_out.intent,
+        copilot=planner.copilot,
+    )
     chart_enabled = req.include_chart and os.getenv("V3_CHART_AGENT_ENABLED", "0") in {"1", "true", "TRUE", "yes", "YES"}
     chart_spec = build_chart_spec(rows=result.rows, question=req.question, enabled=chart_enabled)
 
@@ -125,9 +131,10 @@ def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
     ]
     assumptions.extend(rollout.warnings)
     answer = "Here are the V3 results from your ERP data."
+    data = result.rows if result.rows else [{"message": "I am sorry, no data matched to your question."}]
     return V3AskResponse(
         answer=answer,
-        data=result.rows,
+        data=data,
         insights=insights,
         chart_spec=chart_spec,
         confidence=planner.confidence,

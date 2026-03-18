@@ -12,11 +12,12 @@
   justify-content: space-between;
   align-items: center;
   padding: 14px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(34, 211, 238, 0.35);
   background: rgba(11, 14, 20, 0.9);
   position: sticky;
   top: 0;
   z-index: 10;
+  box-shadow: 0 2px 20px rgba(34, 211, 238, 0.08);
 }
 
 .title { font-weight: 700; }
@@ -24,12 +25,13 @@
 .role { opacity: 0.9; }
 
 .logout {
-  border: 0;
+  border: 1px solid rgba(34, 211, 238, 0.5);
   border-radius: 8px;
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.12);
   color: #e7ebf3;
   cursor: pointer;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.15);
 }
 
 .pageWrap {
@@ -47,9 +49,10 @@
 
 .widget {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.5);
   border-radius: 12px;
   padding: 12px;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.15);
 }
 
 .widgetLabel {
@@ -75,6 +78,22 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   padding: 14px;
+}
+
+.mainPanel {
+  border-color: rgba(167, 139, 250, 0.5);
+  box-shadow: 0 0 16px rgba(167, 139, 250, 0.12);
+}
+
+.panel.side {
+  border-color: rgba(132, 204, 22, 0.5);
+  box-shadow: 0 0 16px rgba(132, 204, 22, 0.12);
+}
+
+.resultsPanel {
+  min-height: 320px;
+  border-color: rgba(212, 168, 75, 0.5);
+  box-shadow: 0 0 16px rgba(212, 168, 75, 0.12);
 }
 
 .controls {
@@ -112,10 +131,11 @@ textarea {
   min-height: 110px;
   resize: vertical;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.5);
   background: rgba(0, 0, 0, 0.25);
   color: #e7ebf3;
   padding: 10px 12px;
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.1);
 }
 
 .actions {
@@ -148,10 +168,11 @@ textarea {
 }
 
 .hintCard {
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(236, 72, 153, 0.45);
   border-radius: 10px;
   padding: 10px;
   background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 0 10px rgba(236, 72, 153, 0.1);
 }
 
 .hintTitle { font-size: 11px; opacity: 0.8; }
@@ -160,10 +181,6 @@ textarea {
   font-size: 13px;
   font-weight: 700;
   word-break: break-word;
-}
-
-.resultsPanel {
-  min-height: 320px;
 }
 
 .resultsHeader {
@@ -190,14 +207,22 @@ textarea {
   margin-bottom: 8px;
 }
 
+/* Golden accent titles for black theme */
+.resultsTitle,
+.answerTitle,
+.resultsPanel .sectionTitle {
+  color: #d4a84b;
+}
+
 .answer { margin-top: 12px; }
 .results { margin-top: 12px; }
 
 .tableWrap {
   overflow: auto;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.5);
   max-height: 460px;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.12);
 }
 
 table {
@@ -225,12 +250,13 @@ th {
   width: 100%;
   text-align: left;
   margin-bottom: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(132, 204, 22, 0.45);
   background: rgba(255, 255, 255, 0.05);
   color: #e7ebf3;
   border-radius: 8px;
   padding: 8px;
   cursor: pointer;
+  box-shadow: 0 0 8px rgba(132, 204, 22, 0.08);
 }
 
 .historyItem {
@@ -249,6 +275,7 @@ pre {
   border-radius: 10px;
   padding: 10px;
   background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(167, 139, 250, 0.3);
 }
 
 .debugBlock {
