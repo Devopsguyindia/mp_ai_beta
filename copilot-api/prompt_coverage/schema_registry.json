@@ -1,0 +1,392 @@
+{
+  "version": "1",
+  "critical_note": "ALWAYS add idcompany filter for all queries so the gallery sees only its own data.",
+  "global_critical_notes": [
+    "When answering queries related to edition types (open, limited, unique, nonstock), always use EditionName column of company_item_data view. Do not return edition_type (0/1/2/3) to the end user.",
+    "For artist names: use company_item_data's ArtistFirst and ArtistLast columns (append/concatenate them).",
+    "For vendor names: use company_item_data's VendorFirst and VendorLast columns (append/concatenate them)."
+  ],
+  "tables": [
+    {
+      "table": "company",
+      "purpose": "Master table; Company = Gallery = subscriber. Super important.",
+      "critical_notes": [
+        "NEVER EVER forget to add idcompany filter for all queries so the gallery sees only its own data."
+      ],
+      "columns": [
+        {"name": "idcompany", "purpose": "PK; used in all tables as FK for tenant filter"},
+        {"name": "name", "purpose": "Name of the gallery"},
+        {"name": "website", "purpose": "Website of the gallery"},
+        {"name": "phone", "purpose": "Phone"},
+        {"name": "email", "purpose": "Email"},
+        {"name": "company_identifier", "purpose": "Company name used to login to ERP and copilot"},
+        {"name": "commission", "purpose": "Commission flag"},
+        {"name": "commision_percent", "purpose": "Commission percent"},
+        {"name": "idcompany_stock_location", "purpose": "FK to company_stock_location"},
+        {"name": "idcompany_tax_type", "purpose": "FK to company_tax_type"},
+        {"name": "zip", "purpose": "Zip"},
+        {"name": "address", "purpose": "Address"},
+        {"name": "city", "purpose": "City"},
+        {"name": "state", "purpose": "State"},
+        {"name": "country", "purpose": "Country"},
+        {"name": "timezone", "purpose": "Timezone"},
+        {"name": "idtimezones", "purpose": "Timezone ID"}
+      ]
+    },
+    {
+      "table": "company_user",
+      "purpose": "Stores all users of a company (gallery)",
+      "columns": [
+        {"name": "idcompany_user", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "username", "purpose": "Username"},
+        {"name": "password", "purpose": "Password"},
+        {"name": "iduserrole", "purpose": "Role of the user"},
+        {"name": "useremail", "purpose": "User email"},
+        {"name": "is_master", "purpose": "Master user flag"},
+        {"name": "is_active", "purpose": "Active flag"}
+      ]
+    },
+    {
+      "table": "company_staff",
+      "purpose": "Staff of the gallery",
+      "columns": [
+        {"name": "idcompany_staff", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "idcompany_user", "purpose": "FK to company_user"},
+        {"name": "firstname", "purpose": "First name"},
+        {"name": "lastname", "purpose": "Last name"},
+        {"name": "idcompany_location", "purpose": "Location where staff works"},
+        {"name": "is_active", "purpose": "Active flag"}
+      ]
+    },
+    {
+      "table": "company_location",
+      "purpose": "Multiple branches of the gallery",
+      "columns": [
+        {"name": "idcompany_location", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "location_name", "purpose": "Location name"},
+        {"name": "address1", "purpose": "Address"},
+        {"name": "city", "purpose": "City"},
+        {"name": "state", "purpose": "State"},
+        {"name": "zip", "purpose": "Zip"},
+        {"name": "country", "purpose": "Country"},
+        {"name": "is_primary", "purpose": "Primary location flag"}
+      ]
+    },
+    {
+      "table": "company_stock_location",
+      "purpose": "Stock locations of the gallery",
+      "columns": [
+        {"name": "idcompany_stock_location", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "location", "purpose": "Location name"},
+        {"name": "is_system", "purpose": "System location flag"}
+      ]
+    },
+    {
+      "table": "company_contact",
+      "purpose": "Key table for artist, vendor, customer, designer, gallery, prospect. Primary record for all contact types.",
+      "columns": [
+        {"name": "idcompany_contact", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "idcompany_location", "purpose": "Location where contact was created"},
+        {"name": "firstname", "purpose": "First name"},
+        {"name": "lastname", "purpose": "Last name"},
+        {"name": "company", "purpose": "Company name of artist/vendor/customer"},
+        {"name": "email", "purpose": "Email"},
+        {"name": "phone", "purpose": "Phone"},
+        {"name": "full_name", "purpose": "Full name"},
+        {"name": "full_name1", "purpose": "Alternate full name"},
+        {"name": "line1", "purpose": "Address line 1"},
+        {"name": "line2", "purpose": "Address line 2"},
+        {"name": "city", "purpose": "City"},
+        {"name": "state", "purpose": "State"},
+        {"name": "zip", "purpose": "Zip"},
+        {"name": "country", "purpose": "Country"},
+        {"name": "is_deleted", "purpose": "Deleted flag"},
+        {"name": "other_contact_category", "purpose": "Contact type category"}
+      ]
+    },
+    {
+      "table": "company_artist",
+      "purpose": "Additional info about artist. Primary info in company_contact.",
+      "columns": [
+        {"name": "idcompany_artist", "purpose": "PK"},
+        {"name": "idcompany_contact", "purpose": "FK to company_contact"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "bio", "purpose": "Artist bio"},
+        {"name": "artist_desc", "purpose": "Artist description"}
+      ]
+    },
+    {
+      "table": "company_customer",
+      "purpose": "Additional info about customer. Primary info in company_contact.",
+      "columns": [
+        {"name": "idcompany_customer", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "idcompany_contact", "purpose": "FK to company_contact"},
+        {"name": "normal_discount", "purpose": "Default discount"}
+      ]
+    },
+    {
+      "table": "company_vendor",
+      "purpose": "Additional info about vendor. Primary info in company_contact.",
+      "columns": [
+        {"name": "idcompany_vendor", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "idcompany_contact", "purpose": "FK to company_contact"},
+        {"name": "consignment", "purpose": "Consignment terms"},
+        {"name": "maximum_discount", "purpose": "Max discount allowed"}
+      ]
+    },
+    {
+      "table": "company_item",
+      "purpose": "Critical table for all items (artworks) in gallery inventory.",
+      "critical_notes": [
+        "Item may have an artist or may not. idcompany_artist can be NULL.",
+        "Item may have a vendor or may not. idcompany_vendor can be NULL.",
+        "edition_type: 0=Unique (qoh max 1), 1=Open (qoh is actual qty), 2=Limited (ed_size holds size), 3=NonStock.",
+        "For sale/revenue/margin: actual sale price is in company_sale_line_items.price_now, not artprice. art_cost is purchase cost."
+      ],
+      "columns": [
+        {"name": "idcompany_item", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "idcompany_artist", "purpose": "FK to company_artist; item may or may not have artist"},
+        {"name": "idcompany_vendor", "purpose": "FK to company_vendor; item may or may not have vendor"},
+        {"name": "title", "purpose": "Item title"},
+        {"name": "qoh", "purpose": "Quantity on hand"},
+        {"name": "art_cost", "purpose": "Cost of purchase"},
+        {"name": "artprice", "purpose": "Asking/sale price before discount"},
+        {"name": "edition_type", "purpose": "0=Unique, 1=Open, 2=Limited, 3=NonStock"},
+        {"name": "ed_size", "purpose": "Edition size for limited items"},
+        {"name": "idcompany_stock_location", "purpose": "Stock location"},
+        {"name": "idcompany_location", "purpose": "Branch/location"},
+        {"name": "stock_location", "purpose": "Stock location name"},
+        {"name": "isconsigned", "purpose": "Consigned item flag"},
+        {"name": "consign_percent", "purpose": "Consignment percent to vendor"},
+        {"name": "taxable", "purpose": "Taxable flag"},
+        {"name": "isdiscountable", "purpose": "Can discount be given"},
+        {"name": "total_asking_price", "purpose": "Total asking price"},
+        {"name": "scancode", "purpose": "Scan code"},
+        {"name": "new_scancode", "purpose": "New scan code"},
+        {"name": "created_date", "purpose": "Created date"},
+        {"name": "updated_date", "purpose": "Updated date"},
+        {"name": "is_delete", "purpose": "Deleted flag"}
+      ]
+    },
+    {
+      "table": "company_sale",
+      "purpose": "Most critical business table. Sale header for sale, approval, quote.",
+      "columns": [
+        {"name": "idcompany_sale", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "idcompany_customer", "purpose": "FK to company_contact (customer)"},
+        {"name": "sale_date", "purpose": "Date of transaction"},
+        {"name": "transaction_number", "purpose": "Transaction number"},
+        {"name": "is_sale", "purpose": "1=Sale"},
+        {"name": "is_quote", "purpose": "1=Quote"},
+        {"name": "isapproval", "purpose": "1=Approval"},
+        {"name": "isreturned", "purpose": "1=Return"},
+        {"name": "total", "purpose": "Total sale amount"},
+        {"name": "payments", "purpose": "Total payment made"},
+        {"name": "balance", "purpose": "Balance to be paid"},
+        {"name": "discount", "purpose": "Discount amount"},
+        {"name": "taxes", "purpose": "Tax amount"},
+        {"name": "taxable_items", "purpose": "Taxable items amount"},
+        {"name": "nontaxable_items", "purpose": "Non-taxable items amount"},
+        {"name": "idcompany_location", "purpose": "Location of sale"},
+        {"name": "idcompany_artist", "purpose": "Artist if single-artist sale"},
+        {"name": "is_active_quote", "purpose": "1=Quote still active"},
+        {"name": "created_date", "purpose": "Created date"},
+        {"name": "updated_date", "purpose": "Updated date"}
+      ]
+    },
+    {
+      "table": "company_sale_line_items",
+      "purpose": "Line-level sale details: which items sold, qty, price, discount.",
+      "critical_notes": [
+        "Quick sale: item added to sale without first entering inventory. quick_sale=1 identifies this.",
+        "price_now = actual sale price for that line. Use for revenue/margin calculations."
+      ],
+      "columns": [
+        {"name": "idcompany_sale_line_items", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "idcompany_sale", "purpose": "FK to company_sale"},
+        {"name": "idcompany_item", "purpose": "FK to company_item"},
+        {"name": "idcompany_item_edition", "purpose": "Edition of item sold"},
+        {"name": "qty", "purpose": "Quantity sold"},
+        {"name": "price_was", "purpose": "Original asking price"},
+        {"name": "price_now", "purpose": "Actual sale price"},
+        {"name": "total", "purpose": "Line total"},
+        {"name": "item_title", "purpose": "Item title"},
+        {"name": "item_edition_type", "purpose": "Edition type"},
+        {"name": "item_edition", "purpose": "Edition"},
+        {"name": "is_returned", "purpose": "1=Item returned"},
+        {"name": "is_converted", "purpose": "1=Converted from approval/quote"},
+        {"name": "quick_sale", "purpose": "1=Quick sale (item not in inventory first)"},
+        {"name": "vendor_disc", "purpose": "Vendor discount"},
+        {"name": "vendordiscount", "purpose": "Vendor discount amount"},
+        {"name": "scancode", "purpose": "Scan code"}
+      ]
+    },
+    {
+      "table": "company_sale_client",
+      "purpose": "Customer/client details for a sale. Transaction may be anonymous.",
+      "critical_notes": [
+        "A transaction may have a client (customer) or it can be anonymous."
+      ],
+      "columns": [
+        {"name": "idcompany_sale_client", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "idcompany_sale", "purpose": "FK to company_sale"},
+        {"name": "firstname", "purpose": "First name"},
+        {"name": "lastname", "purpose": "Last name"},
+        {"name": "company", "purpose": "Company"},
+        {"name": "email", "purpose": "Email"},
+        {"name": "shipping_address", "purpose": "Shipping address"},
+        {"name": "mail_address", "purpose": "Mail address"}
+      ]
+    },
+    {
+      "table": "company_sale_payment",
+      "purpose": "Payments due or completed against a sale. Layaway installments.",
+      "critical_notes": [
+        "Multiple rows per idcompany_sale = multiple installments for same transaction.",
+        "No entry for approval or quote (no payment involved).",
+        "Layaway: is_layaway=1, pay_type='Layaway', amount_due has value, amount_paid 0 or NULL.",
+        "Paid sale: amount_due and amount_paid both have values.",
+        "Return: amount_due and amount_paid have negative values.",
+        "Outstanding due: use date_due, date_paid, amount_due, amount_paid. date_paid IS NULL = unpaid."
+      ],
+      "columns": [
+        {"name": "idcompany_sale_payment", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "idcompany_sale", "purpose": "FK to company_sale"},
+        {"name": "date_due", "purpose": "Expected payment date"},
+        {"name": "date_paid", "purpose": "Actual payment date"},
+        {"name": "amount_due", "purpose": "Due amount"},
+        {"name": "amount_paid", "purpose": "Paid amount"},
+        {"name": "is_layaway", "purpose": "1=Layaway entry"},
+        {"name": "pay_type", "purpose": "Payment type e.g. Layaway"},
+        {"name": "layway_installment", "purpose": "Installment number"}
+      ]
+    },
+    {
+      "table": "company_contact_data1",
+      "purpose": "VIEW: Uniform view for all contact types (artist, customer, vendor, prospect). Use for contact queries.",
+      "columns": [
+        {"name": "idcompany_contact", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "full_name", "purpose": "Full name (firstname + lastname)"},
+        {"name": "firstname", "purpose": "First name"},
+        {"name": "lastname", "purpose": "Last name"},
+        {"name": "company", "purpose": "Company name"},
+        {"name": "email_address", "purpose": "Email"},
+        {"name": "phone_number", "purpose": "Phone"},
+        {"name": "line1", "purpose": "Address line 1"},
+        {"name": "line2", "purpose": "Address line 2"},
+        {"name": "city", "purpose": "City"},
+        {"name": "state", "purpose": "State"},
+        {"name": "pincode", "purpose": "Zip"},
+        {"name": "country", "purpose": "Country"},
+        {"name": "is_artist", "purpose": "1=Artist"},
+        {"name": "is_customer", "purpose": "1=Customer"},
+        {"name": "is_vendor", "purpose": "1=Vendor"},
+        {"name": "is_deleted", "purpose": "Deleted flag"}
+      ]
+    },
+    {
+      "table": "company_item_data",
+      "purpose": "VIEW: Uniform inventory view. Exposes item attributes. edition_type: 0=Unique, 1=Open, 2=Limited, 3=NonStock.",
+      "critical_notes": [
+        "Item may have an artist or may not. idcompany_artist can be NULL.",
+        "Item may have a vendor or may not. idcompany_vendor can be NULL.",
+        "edition_type: 0=Unique (qoh max 1), 1=Open (qoh is actual qty), 2=Limited (ed_size holds size), 3=NonStock.",
+        "For sale/revenue/margin: actual sale price is in company_sale_line_items.price_now, not artprice. art_cost is purchase cost."
+      ],
+      "columns": [
+        {"name": "idcompany_item", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "title", "purpose": "Item title"},
+        {"name": "ArtistFirst", "purpose": "Artist first name"},
+        {"name": "ArtistLast", "purpose": "Artist last name"},
+        {"name": "VendorFirst", "purpose": "Vendor first name"},
+        {"name": "VendorLast", "purpose": "Vendor last name"},
+        {"name": "ArtistName", "purpose": "Artist name from contact"},
+        {"name": "VendorName", "purpose": "Vendor name from contact"},
+        {"name": "ArtName", "purpose": "Artist display name"},
+        {"name": "qoh", "purpose": "Quantity on hand"},
+        {"name": "artprice", "purpose": "Asking price"},
+        {"name": "art_cost", "purpose": "Cost"},
+        {"name": "edition_type", "purpose": "0=Unique, 1=Open, 2=Limited, 3=NonStock"},
+        {"name": "EditionName", "purpose": "Unique/Open/Limited/Non Stock"},
+        {"name": "ed_size", "purpose": "Edition size for limited"},
+        {"name": "LocationName", "purpose": "Stock location name"},
+        {"name": "ItemComLocation", "purpose": "Item company location"},
+        {"name": "idcompany_artist", "purpose": "ArtistId"},
+        {"name": "idcompany_vendor", "purpose": "VendorId"},
+        {"name": "scancode", "purpose": "Scan code"},
+        {"name": "new_scancode", "purpose": "New scan code"},
+        {"name": "isconsigned", "purpose": "Consigned flag"},
+        {"name": "isdiscountable", "purpose": "Can discount"},
+        {"name": "created_date", "purpose": "Created date"},
+        {"name": "SoldDate", "purpose": "Date sold if applicable"}
+      ]
+    },
+    {
+      "table": "company_sale_data",
+      "purpose": "VIEW: Uniform sales view joining sale, line items, contact, location. Use for sales detail queries.",
+      "columns": [
+        {"name": "idcompany_sale", "purpose": "PK"},
+        {"name": "idcompany_sale_line_items", "purpose": "Line item PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "sale_date", "purpose": "Sale date"},
+        {"name": "transaction_number", "purpose": "Transaction number"},
+        {"name": "CustomerName", "purpose": "Customer name from company_contact"},
+        {"name": "CustomerCompany", "purpose": "Customer company"},
+        {"name": "ArtistName", "purpose": "Artist name from item"},
+        {"name": "VendorName", "purpose": "Vendor name from item"},
+        {"name": "item_title", "purpose": "Item title"},
+        {"name": "qty", "purpose": "Quantity sold"},
+        {"name": "PriceNow", "purpose": "Actual sale price"},
+        {"name": "PriceWas", "purpose": "Original price"},
+        {"name": "LineTotal", "purpose": "Line total"},
+        {"name": "total", "purpose": "Sale total"},
+        {"name": "balance", "purpose": "Balance due"},
+        {"name": "location_name", "purpose": "Sale location"},
+        {"name": "EditionName", "purpose": "Edition type name"},
+        {"name": "item_edition_type", "purpose": "Edition type"},
+        {"name": "item_edition", "purpose": "Edition"},
+        {"name": "is_sale", "purpose": "1=Sale"},
+        {"name": "is_quote", "purpose": "1=Quote"},
+        {"name": "isapproval", "purpose": "1=Approval"},
+        {"name": "SaleReturned", "purpose": "1=Sale returned (from sale.isreturned)"},
+        {"name": "isreturned", "purpose": "1=Sale returned (alias)"},
+        {"name": "is_returned", "purpose": "1=Line item returned"},
+        {"name": "idcompany_customer", "purpose": "Customer FK"},
+        {"name": "idcompany_artist", "purpose": "Artist FK"},
+        {"name": "idcompany_item", "purpose": "Item FK"},
+        {"name": "ItemCost", "purpose": "Item cost"},
+        {"name": "CostNow", "purpose": "Cost after vendor discount"},
+        {"name": "discount", "purpose": "Sale discount"},
+        {"name": "taxes", "purpose": "Tax amount"},
+        {"name": "idcompany_location", "purpose": "Location FK"}
+      ]
+    },
+    {
+      "table": "report_usage",
+      "purpose": "Report usage tracking",
+      "columns": [
+        {"name": "id", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "user_id", "purpose": "User ID"},
+        {"name": "report_id", "purpose": "Report ID"},
+        {"name": "filter_data", "purpose": "Filter data"},
+        {"name": "usage_count", "purpose": "Usage count"},
+        {"name": "last_used", "purpose": "Last used datetime"}
+      ]
+    }
+  ]
+}

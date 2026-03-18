@@ -5,7 +5,7 @@
 export const environment = {
   production: false,
   copilotApiBaseUrl: 'http://localhost:8001',
-  v3AskEnabled: false
+  v3AskEnabled: true
 };
 
 /*

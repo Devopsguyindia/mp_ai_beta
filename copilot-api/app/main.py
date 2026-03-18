@@ -17,8 +17,11 @@ from pydantic import BaseModel, Field
 
 from .llm_nl2sql import generate_query_with_llm
 from .nl2sql_engine import generate_query
+from .v3.rag.schema_index import build_schema_from_registry
 from .sql_guardrails import GuardrailResult, validate_select_sql
 from .sql_runner import QueryResult, run_select_query
+from .v3.models import V3AskRequest, V3AskResponse
+from .v3.orchestrator import run_v3_ask
 
 
 load_dotenv()
@@ -27,13 +30,24 @@ app = FastAPI(title="Copilot API (V1, read-only)", version="0.1.0")
 
 cors_origins_raw = os.getenv(
     "CORS_ALLOW_ORIGINS",
-    "http://localhost:4200,http://127.0.0.1:4200",
+    "http://localhost:4200,http://127.0.0.1:4200,http://localhost:4300,http://127.0.0.1:4300",
 )
 cors_allow_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+# Keep local dev origins for both V2 (4200) and V3 (4300) even if env omits them.
+for local_origin in (
+    "http://localhost:4200",
+    "http://127.0.0.1:4200",
+    "http://localhost:4300",
+    "http://127.0.0.1:4300",
+):
+    if local_origin not in cors_allow_origins:
+        cors_allow_origins.append(local_origin)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_allow_origins,
+    # Dev safety net: allow localhost/127.0.0.1 on any port.
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -108,6 +122,31 @@ def _decode_jwt_payload_unverified(token: str) -> dict[str, Any]:
         return {}
 
 
+def _resolve_idcompany_from_request(*, req_idcompany: int, access_token: str | None) -> int:
+    if not access_token:
+        return req_idcompany
+    token_payload = _decode_jwt_payload_unverified(access_token)
+    token_company = token_payload.get("company_id") or token_payload.get("idcompany")
+    try:
+        token_company_int = int(token_company)
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "invalid_token", "message": "Could not resolve company_id from JWT token."},
+        )
+    if token_company_int != req_idcompany:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "company_mismatch",
+                "message": "Request idcompany does not match JWT company_id.",
+                "token_company_id": token_company_int,
+                "request_idcompany": req_idcompany,
+            },
+        )
+    return token_company_int
+
+
 def _to_sql_literal(value: Any) -> str:
     if value is None:
         return "NULL"
@@ -139,9 +178,16 @@ def _extract_sql_relations(sql: str) -> set[str]:
 
 def _infer_routed_intent_from_question(question: str) -> str:
     q = question.lower()
+    # Direct routing for simple inventory edition-count asks (e.g., "count of limited items").
+    has_count = any(t in q for t in ["count", "how many", "total"])
+    has_item = any(t in q for t in ["item", "items"])
+    has_edition_signal = any(t in q for t in ["limited", "open", "unique", "edition"])
+    if has_count and has_item and has_edition_signal:
+        return "inventory_total_stock"
+
     intent_signals: list[tuple[str, list[str]]] = [
         ("sales_layaway_outstanding", ["layaway", "receivable", "overdue", "due", "installment"]),
-        ("inventory_total_stock", ["inventory", "stock", "qoh", "on hand", "unsold"]),
+        ("inventory_total_stock", ["inventory", "stock", "qoh", "on hand", "unsold", "item", "items", "edition", "limited", "open", "unique"]),
         ("customer_top_by_ltv", ["customer", "customers", "buyer", "buyers", "collector", "ltv", "followup", "inactive"]),
         ("artist_sales_performance", ["artist", "artists", "commission", "sell through"]),
         ("vendor_outstanding_payables", ["vendor", "vendors", "supplier", "suppliers", "payable", "invoice", "spend"]),
@@ -401,7 +447,12 @@ def chat(req: ChatRequest) -> ChatResponse:
 
     generation_path = "llm"
     generation_error = None
-    query, generation_error = generate_query_with_llm(req.question, copilot=selected_copilot)
+    v2_schema = build_schema_from_registry(selected_copilot)
+    query, generation_error = generate_query_with_llm(
+        req.question,
+        copilot=selected_copilot,
+        schema_from_context=v2_schema or None,
+    )
     if query is None:
         generation_path = "deterministic_fallback"
         query = generate_query(req.question, copilot=selected_copilot)
@@ -444,6 +495,7 @@ def chat(req: ChatRequest) -> ChatResponse:
             repaired_query, repair_err = generate_query_with_llm(
                 req.question,
                 copilot=selected_copilot,
+                schema_from_context=v2_schema or None,
                 error_context={"previous_sql": sql, "db_error": err_msg},
             )
             if repaired_query is not None:
@@ -524,4 +576,22 @@ def chat(req: ChatRequest) -> ChatResponse:
         )
 
     return ChatResponse(answer=answer, data=result.rows, debug=debug)
+
+
+@app.post("/v3/ask", response_model=V3AskResponse)
+def v3_ask(req: V3AskRequest) -> V3AskResponse:
+    if os.getenv("V3_ASK_ENABLED", "1") not in {"1", "true", "TRUE", "yes", "YES"}:
+        raise HTTPException(status_code=404, detail={"error": "v3_disabled"})
+    resolved_idcompany = _resolve_idcompany_from_request(
+        req_idcompany=req.idcompany,
+        access_token=req.access_token,
+    )
+    try:
+        return run_v3_ask(req=req, resolved_idcompany=resolved_idcompany)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": "v3_validation_failed", "message": str(e)})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"error": "v3_failed", "message": str(e)})
 

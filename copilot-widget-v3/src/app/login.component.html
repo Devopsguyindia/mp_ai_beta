@@ -1,0 +1,28 @@
+<div class="loginPage">
+  <div class="card">
+    <h1>MP AI Copilot</h1>
+    <p class="sub">Sign in with your ERP credentials</p>
+
+    <label>
+      <span>Gallery (company)</span>
+      <input [(ngModel)]="txt_company" placeholder="testing" />
+    </label>
+
+    <label>
+      <span>Username</span>
+      <input [(ngModel)]="txt_username" placeholder="mijay" />
+    </label>
+
+    <label>
+      <span>Password</span>
+      <input [(ngModel)]="txt_password" type="password" placeholder="******" />
+    </label>
+
+    <button (click)="submit()" [disabled]="loading">
+      {{ loading ? 'Signing in...' : 'Sign in' }}
+    </button>
+
+    <div class="error" *ngIf="error">{{ error }}</div>
+  </div>
+</div>
+

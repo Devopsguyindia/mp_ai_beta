@@ -6,6 +6,7 @@ import re
 from typing import Any, Literal
 
 from .nl2sql_engine import QuerySpec
+from .v3.rag.schema_index import build_schema_from_registry
 
 
 SCHEMA_CONTEXT = """
@@ -46,13 +47,13 @@ Inventory focus:
     "customer": """
 Customer focus:
 - Prefer company_contact_data1 and company_sale/company_sale_data.
-- Customer identity fields: idcompany_contact, full_name, CustomerName.
+- Use only columns from the schema above for customer identity.
 - Typical asks: LTV/top customers, overdue balances, inactive customers.
 """.strip(),
     "artist": """
 Artist focus:
 - Prefer company_sale_data and company_item_data.
-- Artist identity fields: idcompany_artist, ArtistName.
+- Use only columns from the schema above for artist identity.
 - Typical asks: artist sales performance, top collectors, returns profile.
 """.strip(),
     "vendor": """
@@ -278,6 +279,7 @@ def generate_query_with_llm(
     question: str,
     copilot: Literal["sales", "inventory", "customer", "artist", "vendor"] | None = None,
     error_context: dict[str, str] | None = None,
+    schema_from_context: str | None = None,
 ) -> tuple[QuerySpec | None, str | None]:
     if os.getenv("AI_FIRST_SQL_ENABLED", "1") not in {"1", "true", "TRUE", "yes", "YES"}:
         return None, "ai_first_sql_disabled"
@@ -296,6 +298,13 @@ def generate_query_with_llm(
         if selected_copilot not in COPILOT_TYPES:
             selected_copilot = "sales"
         copilot_context = COPILOT_CONTEXT.get(selected_copilot, COPILOT_CONTEXT["sales"])
+        schema_block = (
+            (schema_from_context or "").strip()
+            or build_schema_from_registry(selected_copilot)
+            or SCHEMA_CONTEXT
+        )
+        if schema_block and not schema_block.endswith("\n"):
+            schema_block += "\n"
 
         system_prompt = f"""
 You are an expert MySQL NL2SQL generator for an art-gallery ERP.
@@ -305,7 +314,7 @@ Return ONLY valid JSON with keys:
 - sql: string
 - window_label: string (optional)
 
-{SCHEMA_CONTEXT}
+{schema_block}
 {copilot_context}
 
 Rules:

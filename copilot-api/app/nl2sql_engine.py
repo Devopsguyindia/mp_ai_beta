@@ -4,6 +4,80 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
+# Default column names when schema registry has no match (backward compatibility)
+_DEFAULT_CUSTOMER_NAME_COL = "CustomerName"
+_DEFAULT_ARTIST_NAME_COL = "ArtistName"
+_DEFAULT_VENDOR_NAME_COL = "VendorName"
+_DEFAULT_LINE_TOTAL_COL = "LineTotal"
+_DEFAULT_PRICE_NOW_COL = "PriceNow"
+_DEFAULT_ITEM_TITLE_COL = "item_title"
+_DEFAULT_SALE_RETURNED_COL = "SaleReturned"
+
+# Concept -> substrings that must appear in column name (case-insensitive)
+_CONCEPT_PATTERNS: dict[str, list[str]] = {
+    "customer_name": ["customer", "name"],
+    "artist_name": ["artist", "name"],
+    "vendor_name": ["vendor", "name"],
+    "line_total": ["line", "total"],
+    "price_now": ["price", "now"],
+    "item_title": ["item", "title"],
+    "sale_returned": ["sale", "returned"],
+}
+
+
+def _resolve_column_from_registry(table: str, concept: str) -> str | None:
+    """Resolve column name for table+concept from schema registry. Returns None if not found."""
+    try:
+        from .v3.rag.schema_index import load_schema_registry
+        registry = load_schema_registry()
+        tables = registry.get("tables", [])
+        table_entry = next(
+            (t for t in tables if isinstance(t, dict) and str(t.get("table", "")) == table),
+            None,
+        )
+        if not table_entry:
+            return None
+        columns = table_entry.get("columns", [])
+        concept_lower = concept.lower()
+        patterns = _CONCEPT_PATTERNS.get(concept_lower)
+        if patterns:
+            for col in columns:
+                name = str(col.get("name", ""))
+                name_lower = name.lower()
+                if all(p in name_lower for p in patterns):
+                    return name
+        return None
+    except Exception:
+        return None
+
+
+def _customer_name_col(table: str = "company_sale_data") -> str:
+    return _resolve_column_from_registry(table, "customer_name") or _DEFAULT_CUSTOMER_NAME_COL
+
+
+def _artist_name_col(table: str = "company_sale_data") -> str:
+    return _resolve_column_from_registry(table, "artist_name") or _DEFAULT_ARTIST_NAME_COL
+
+
+def _vendor_name_col(table: str = "company_sale_data") -> str:
+    return _resolve_column_from_registry(table, "vendor_name") or _DEFAULT_VENDOR_NAME_COL
+
+
+def _line_total_col(table: str = "company_sale_data") -> str:
+    return _resolve_column_from_registry(table, "line_total") or _DEFAULT_LINE_TOTAL_COL
+
+
+def _price_now_col(table: str = "company_sale_data") -> str:
+    return _resolve_column_from_registry(table, "price_now") or _DEFAULT_PRICE_NOW_COL
+
+
+def _item_title_col(table: str = "company_sale_data") -> str:
+    return _resolve_column_from_registry(table, "item_title") or _DEFAULT_ITEM_TITLE_COL
+
+
+def _sale_returned_col(table: str = "company_sale_data") -> str:
+    return _resolve_column_from_registry(table, "sale_returned") or _DEFAULT_SALE_RETURNED_COL
+
 
 @dataclass(frozen=True)
 class QuerySpec:
@@ -193,19 +267,22 @@ def generate_query(
         )
 
     if intent == "artist_sales_performance":
+        an_col = _artist_name_col("company_sale_data")
+        lt_col = _line_total_col("company_sale_data")
+        sr_col = _sale_returned_col("company_sale_data")
         return QuerySpec(
             intent=intent,
             sql=f"""
             SELECT
               d.idcompany_artist,
-              d.ArtistName,
-              ROUND(SUM(d.LineTotal), 2) AS total_sales_net
+              d.{an_col},
+              ROUND(SUM(d.{lt_col}), 2) AS total_sales_net
             FROM company_sale_data d
             WHERE d.idcompany = %(idcompany)s
               AND d.is_sale = 1
-              AND COALESCE(d.SaleReturned, 0) = 0
+              AND COALESCE(d.{sr_col}, 0) = 0
               AND d.sale_date >= {window_expr}
-            GROUP BY d.idcompany_artist, d.ArtistName
+            GROUP BY d.idcompany_artist, d.{an_col}
             ORDER BY total_sales_net DESC
             LIMIT {limit}
             """.strip(),
@@ -216,19 +293,23 @@ def generate_query(
         )
 
     if intent == "artist_top_collectors":
+        an_col = _artist_name_col("company_sale_data")
+        cn_col = _customer_name_col("company_sale_data")
+        lt_col = _line_total_col("company_sale_data")
+        sr_col = _sale_returned_col("company_sale_data")
         return QuerySpec(
             intent=intent,
             sql=f"""
             SELECT
-              d.ArtistName,
-              d.CustomerName,
-              ROUND(SUM(d.LineTotal), 2) AS total_sales_net
+              d.{an_col},
+              d.{cn_col},
+              ROUND(SUM(d.{lt_col}), 2) AS total_sales_net
             FROM company_sale_data d
             WHERE d.idcompany = %(idcompany)s
               AND d.is_sale = 1
-              AND COALESCE(d.SaleReturned, 0) = 0
+              AND COALESCE(d.{sr_col}, 0) = 0
               AND d.sale_date >= {window_expr}
-            GROUP BY d.ArtistName, d.CustomerName
+            GROUP BY d.{an_col}, d.{cn_col}
             ORDER BY total_sales_net DESC
             LIMIT {limit}
             """.strip(),
@@ -239,18 +320,21 @@ def generate_query(
         )
 
     if intent == "artist_returns_profile":
+        an_col = _artist_name_col("company_sale_data")
+        lt_col = _line_total_col("company_sale_data")
+        sr_col = _sale_returned_col("company_sale_data")
         return QuerySpec(
             intent=intent,
             sql=f"""
             SELECT
-              d.ArtistName,
+              d.{an_col},
               COUNT(*) AS returned_line_count,
-              ROUND(SUM(d.LineTotal), 2) AS returned_amount_net
+              ROUND(SUM(d.{lt_col}), 2) AS returned_amount_net
             FROM company_sale_data d
             WHERE d.idcompany = %(idcompany)s
-              AND COALESCE(d.SaleReturned, 0) = 1
+              AND COALESCE(d.{sr_col}, 0) = 1
               AND d.sale_date >= {window_expr}
-            GROUP BY d.ArtistName
+            GROUP BY d.{an_col}
             ORDER BY returned_amount_net DESC
             LIMIT {limit}
             """.strip(),
@@ -339,6 +423,12 @@ def generate_query(
         )
 
     if intent == "recent_sold_items":
+        an_col = _artist_name_col("company_sale_data")
+        cn_col = _customer_name_col("company_sale_data")
+        it_col = _item_title_col("company_sale_data")
+        pn_col = _price_now_col("company_sale_data")
+        lt_col = _line_total_col("company_sale_data")
+        sr_col = _sale_returned_col("company_sale_data")
         return QuerySpec(
             intent=intent,
             sql=f"""
@@ -346,16 +436,16 @@ def generate_query(
               d.sale_date,
               d.transaction_number,
               d.idcompany_item,
-              d.item_title,
-              d.ArtistName,
-              d.CustomerName,
+              d.{it_col},
+              d.{an_col},
+              d.{cn_col},
               d.qty,
-              d.PriceNow,
-              d.LineTotal
+              d.{pn_col},
+              d.{lt_col}
             FROM company_sale_data d
             WHERE d.idcompany = %(idcompany)s
               AND d.is_sale = 1
-              AND COALESCE(d.SaleReturned, 0) = 0
+              AND COALESCE(d.{sr_col}, 0) = 0
             ORDER BY d.sale_date DESC, d.idcompany_sale_line_items DESC
             LIMIT {limit}
             """.strip(),
@@ -392,19 +482,22 @@ def generate_query(
         )
 
     if intent == "top_artists_by_total_sales":
+        an_col = _artist_name_col("company_sale_data")
+        lt_col = _line_total_col("company_sale_data")
+        sr_col = _sale_returned_col("company_sale_data")
         return QuerySpec(
             intent=intent,
             sql=f"""
             SELECT
               d.idcompany_artist,
-              d.ArtistName,
-              ROUND(SUM(d.LineTotal), 2) AS total_sales_net
+              d.{an_col},
+              ROUND(SUM(d.{lt_col}), 2) AS total_sales_net
             FROM company_sale_data d
             WHERE d.idcompany = %(idcompany)s
               AND d.is_sale = 1
-              AND COALESCE(d.SaleReturned, 0) = 0
+              AND COALESCE(d.{sr_col}, 0) = 0
               AND d.sale_date >= {window_expr}
-            GROUP BY d.idcompany_artist, d.ArtistName
+            GROUP BY d.idcompany_artist, d.{an_col}
             ORDER BY total_sales_net DESC
             LIMIT {limit}
             """.strip(),
