@@ -127,10 +127,9 @@ def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
 
     assumptions = [
         "Read-only execution with tenant filtering is enforced.",
-        "Chart output is optional and enabled only when requested and configured.",
     ]
     assumptions.extend(rollout.warnings)
-    answer = "Here are the V3 results from your ERP data."
+    answer = "Here are the results from Masterpiece data."
     data = result.rows if result.rows else [{"message": "I am sorry, no data matched to your question."}]
     return V3AskResponse(
         answer=answer,

@@ -304,7 +304,8 @@
         "Item may have an artist or may not. idcompany_artist can be NULL.",
         "Item may have a vendor or may not. idcompany_vendor can be NULL.",
         "edition_type: 0=Unique (qoh max 1), 1=Open (qoh is actual qty), 2=Limited (ed_size holds size), 3=NonStock.",
-        "For sale/revenue/margin: actual sale price is in company_sale_line_items.price_now, not artprice. art_cost is purchase cost."
+        "For sale/revenue/margin: actual sale price is in company_sale_line_items.price_now, not artprice. art_cost is purchase cost.",
+        "company_item_data does NOT have is_delete, total_asking_price, stock_location. Use LocationName (not stock_location). Use (qoh * artprice) for value (not total_asking_price). Omit is_delete filter when using company_item_data."
       ],
       "columns": [
         {"name": "idcompany_item", "purpose": "PK"},

@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from ..models import ChartSpec
+
+
+def _is_numeric(val) -> bool:
+    """Accept int, float, Decimal (MySQL returns Decimal for numeric columns)."""
+    return isinstance(val, (int, float, Decimal))
 
 
 def build_chart_spec(*, rows: list[dict], question: str, enabled: bool) -> ChartSpec | None:
@@ -14,7 +21,7 @@ def build_chart_spec(*, rows: list[dict], question: str, enabled: bool) -> Chart
     x_field = keys[0]
     y_field = None
     for k in keys[1:]:
-        if isinstance(first.get(k), (int, float)):
+        if _is_numeric(first.get(k)):
             y_field = k
             break
     if not y_field:

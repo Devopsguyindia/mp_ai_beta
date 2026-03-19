@@ -43,6 +43,7 @@ Inventory focus:
 - Prefer company_item and company_item_data.
 - Use qoh, artprice, art_cost, edition_type where relevant.
 - For inventory detail asks, return item-level rows with sensible LIMIT.
+- company_item_data: use LocationName (not stock_location), (qoh * artprice) for value (not total_asking_price). Do not use is_delete with company_item_data.
 """.strip(),
     "customer": """
 Customer focus:

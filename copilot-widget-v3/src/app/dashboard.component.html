@@ -41,6 +41,10 @@
             <input type="checkbox" [(ngModel)]="debug" />
             <span>Show work (debug)</span>
           </label>
+          <label class="checkbox">
+            <input type="checkbox" [(ngModel)]="displayChart" />
+            <span>Display chart output</span>
+          </label>
         </div>
 
         <label class="field">
@@ -102,50 +106,70 @@
         <pre>{{ error | json }}</pre>
       </div>
 
-      <div class="answer" *ngIf="response">
-        <div class="answerTitle">Answer</div>
-        <div>{{ response.answer }}</div>
-        <div class="meta" *ngIf="response?.confidence != null">Confidence: {{ response?.confidence | number:'1.2-2' }}</div>
-      </div>
+      <div class="queryOutputGrid" [class.twoCol]="showChart">
+        <div class="queryOutputLeft">
+          <div class="answer" *ngIf="response">
+            <div class="answerTitle">Answer</div>
+            <div>{{ response.answer }}</div>
+          </div>
+          <div class="answer" *ngIf="response?.confidence != null">
+            <div class="answerTitle">Confidence</div>
+            <div>{{ ((response.confidence != null ? response.confidence : 0) * 100) | number:'1.0-0' }}%</div>
+          </div>
 
-      <div class="section" *ngIf="response?.insights?.length">
-        <div class="sectionTitle">Insights</div>
-        <div class="historyItem" *ngFor="let insight of response?.insights">
-          <strong>{{ insight.title }}</strong>: {{ insight.detail }}
+          <div class="section" *ngIf="response?.insights?.length">
+            <div class="sectionTitle">Insights</div>
+            <div class="historyItem" *ngFor="let insight of response?.insights">
+              <span class="insightLabel">{{ insight.title }}:</span> {{ insight.detail }}
+            </div>
+          </div>
+
+          <div class="section" *ngIf="response?.assumptions?.length">
+            <div class="sectionTitle">Assumptions</div>
+            <div class="historyItem" *ngFor="let item of response?.assumptions">{{ item }}</div>
+          </div>
+
+          <div class="results" *ngIf="response?.data?.length">
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th *ngFor="let col of (response.data![0] | keyvalue)">{{ col.key }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let row of response.data">
+                    <td *ngFor="let col of (row | keyvalue)">{{ col.value }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="empty" *ngIf="response && (!response.data || response.data.length === 0)">
+            No rows returned.
+          </div>
         </div>
-      </div>
 
-      <div class="section" *ngIf="response?.chart_spec?.type">
-        <div class="sectionTitle">Chart Suggestion</div>
-        <div class="historyItem">
-          {{ response?.chart_spec?.title || 'Recommended chart' }} ({{ response?.chart_spec?.type }})
+        <div class="queryOutputRight" *ngIf="showChart">
+          <div class="chartSection">
+            <div class="sectionTitle">{{ response?.chart_spec?.title || 'Chart' }}</div>
+            <div class="chartWrap" *ngIf="chartLabels.length && chartDataLength">
+              <div class="customBarChart">
+                <div class="barRow" *ngFor="let label of chartLabels; let i = index">
+                  <span class="barLabel">{{ label }}</span>
+                  <div class="barTrack">
+                    <div class="barFill" [style.width.%]="getBarWidth(i)"></div>
+                  </div>
+                  <span class="barValue">{{ getChartValue(i) | number:'1.0-2' }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="chartPlaceholder" *ngIf="!chartLabels.length || !chartDataLength">
+              No chart data (labels: {{ chartLabels.length }}, data: {{ chartDataLength }})
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div class="section" *ngIf="response?.assumptions?.length">
-        <div class="sectionTitle">Assumptions</div>
-        <div class="historyItem" *ngFor="let item of response?.assumptions">{{ item }}</div>
-      </div>
-
-      <div class="results" *ngIf="response?.data?.length">
-        <div class="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th *ngFor="let col of (response.data![0] | keyvalue)">{{ col.key }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let row of response.data">
-                <td *ngFor="let col of (row | keyvalue)">{{ col.value }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="empty" *ngIf="response && (!response.data || response.data.length === 0)">
-        No rows returned.
       </div>
 
       <div class="section debugBlock" *ngIf="debug && response?.debug">
