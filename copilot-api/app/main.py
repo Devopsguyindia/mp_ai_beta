@@ -22,6 +22,7 @@ from .sql_guardrails import GuardrailResult, validate_select_sql
 from .sql_runner import QueryResult, run_select_query
 from .v3.models import V3AskRequest, V3AskResponse
 from .v3.orchestrator import run_v3_ask
+from .report_suggestions import router as report_suggestions_router
 
 
 load_dotenv()
@@ -52,6 +53,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(report_suggestions_router)
 
 
 class ChatRequest(BaseModel):

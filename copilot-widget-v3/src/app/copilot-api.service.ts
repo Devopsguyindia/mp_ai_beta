@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../environments/environment';
 
@@ -58,6 +58,7 @@ export interface ChatResponse {
   data?: Array<Record<string, any>> | null;
   debug?: DebugInfo | null;
   insights?: Array<{ title: string; detail: string }> | null;
+  follow_up_prompts?: string[] | null;
   chart_spec?: {
     type?: 'bar' | 'line' | 'pie' | null;
     x_field?: string | null;
@@ -66,6 +67,68 @@ export interface ChatResponse {
   } | null;
   confidence?: number | null;
   assumptions?: string[] | null;
+}
+
+export interface ReportSuggestionsRequest {
+  idcompany: number;
+  access_token?: string;
+  user_id?: number | null;
+  top_n?: number;
+  recent_n?: number;
+  smart_default_limit?: number;
+  truncate_filter_data?: boolean;
+  filter_data_max_chars?: number;
+}
+
+export interface ReportTopItem {
+  report_id: number;
+  total_usage: number;
+  report_name?: string | null;
+  name_source?: string | null;
+}
+
+export interface ReportRecentItem {
+  report_id: number;
+  user_id: number;
+  usage_count: number;
+  last_used?: string | null;
+  filter_hash: string;
+  filter_data?: string | null;
+  filter_data_truncated?: boolean;
+  report_name?: string | null;
+}
+
+export interface ReportSmartDefaultItem {
+  report_id: number;
+  filter_hash: string;
+  usage_sum: number;
+  filter_data?: string | null;
+  filter_data_truncated?: boolean;
+  report_name?: string | null;
+}
+
+export interface ReportPredictHintItem {
+  report_id: number;
+  report_name?: string | null;
+  weekday: number;
+  weekday_label: string;
+  run_count: number;
+}
+
+export interface ReportRerunRequest {
+  access_token: string;
+  filter_data: string;
+}
+
+export interface ReportSuggestionsResponse {
+  ok: boolean;
+  idcompany: number;
+  scoped_to_user_id?: number | null;
+  top_reports: ReportTopItem[];
+  recent_runs: ReportRecentItem[];
+  smart_defaults: ReportSmartDefaultItem[];
+  predict_hints: ReportPredictHintItem[];
+  warnings?: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -80,6 +143,18 @@ export class CopilotApiService {
 
   askV3(req: V3AskRequest): Observable<ChatResponse> {
     return this.http.post<ChatResponse>(`${this.baseUrl}/v3/ask`, req);
+  }
+
+  reportSuggestions(req: ReportSuggestionsRequest): Observable<ReportSuggestionsResponse> {
+    return this.http.post<ReportSuggestionsResponse>(`${this.baseUrl}/reports/suggestions`, req);
+  }
+
+  /** Proxied GET to MP generateReport; returns file/HTML body as blob. */
+  rerunReport(req: ReportRerunRequest): Observable<HttpResponse<Blob>> {
+    return this.http.post(`${this.baseUrl}/reports/rerun`, req, {
+      responseType: 'blob',
+      observe: 'response'
+    });
   }
 }
 

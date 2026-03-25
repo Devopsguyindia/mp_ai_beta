@@ -74,6 +74,38 @@ def get_all_column_definitions() -> list[str]:
     return get_column_definitions_for_tables(tables)
 
 
+def get_metric_definitions_text() -> list[str]:
+    """
+    Return metric definitions from schema_registry for injection into agent context.
+    Canonical definitions: Revenue, TotalSales, Margin, Markup, Returns.
+    """
+    registry = load_schema_registry()
+    metrics = registry.get("metric_definitions")
+    if not isinstance(metrics, dict):
+        return []
+    lines: list[str] = []
+    lines.append("Metric definitions (use these formulas):")
+    for key, defn in metrics.items():
+        if not isinstance(defn, dict):
+            continue
+        label = defn.get("label") or key
+        formula = defn.get("formula")
+        filters = defn.get("filters")
+        desc = defn.get("description")
+        if formula:
+            lines.append(f"- {label}: {formula}")
+            if filters:
+                lines.append(f"  Filters: {filters}")
+        elif key == "Returns":
+            excl = defn.get("exclusion_rule")
+            if excl:
+                lines.append(f"- Returns: {excl}")
+            ret_flag = defn.get("return_sale_flag")
+            if ret_flag:
+                lines.append(f"  Return flags: {ret_flag}")
+    return lines
+
+
 def get_critical_notes_for_tables(tables: list[str]) -> list[str]:
     """
     Return critical notes for the given tables from the registry.
@@ -135,6 +167,10 @@ def build_schema_from_registry(copilot: str | None = None) -> str:
     if table_notes:
         parts.append("Critical table notes:")
         parts.extend(table_notes)
+    metric_defs = get_metric_definitions_text()
+    if metric_defs:
+        parts.append("")
+        parts.extend(metric_defs)
     return "\n".join(parts) if parts else ""
 
 

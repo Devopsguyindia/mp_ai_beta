@@ -7,6 +7,7 @@ from ..rag.schema_index import (
     get_all_column_definitions,
     get_column_definitions_for_tables,
     get_critical_notes_for_tables,
+    get_metric_definitions_text,
     load_schema_registry,
 )
 
@@ -43,6 +44,10 @@ def retrieve_schema_context(*, question: str, copilot: str) -> SchemaContext:
     if table_notes:
         context_chunks.append("Critical table notes:")
         context_chunks.extend(table_notes)
+
+    metric_defs = get_metric_definitions_text()
+    if metric_defs:
+        context_chunks.extend(metric_defs)
 
     if strict_schema_prompt:
         context_chunks.insert(0, strict_schema_prompt)

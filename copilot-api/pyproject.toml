@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "copilot-api"
 version = "0.1.0"
@@ -12,6 +16,11 @@ dependencies = [
   "python-dotenv>=1.0",
   "openai>=1.52",
 ]
+
+# Only ship the `app` package. `prompt_coverage/` is prompt data, not a Python package.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
 
 [tool.uvicorn]
 factory = false

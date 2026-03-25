@@ -14,14 +14,16 @@ Primary entities:
 - company (tenant), always scope with idcompany.
 - company_sale (sale header): is_sale/is_quote/isapproval/isreturned, sale_date, total.
 - company_sale_data (line-level sales view): sale_date, transaction_number, item_title,
-  ArtistName, CustomerName, qty, PriceNow, LineTotal, idcompany_sale_line_items,
-  item_edition_type, item_edition, EditionName.
+  ArtistName, CustomerName, qty, PriceNow, LineTotal, ItemCost, SaleReturned, is_returned,
+  idcompany_sale_line_items, item_edition_type, item_edition, EditionName.
 - company_item / company_item_data (inventory): qoh, artprice, art_cost, edition_type.
 - company_sale_payment (layaway/payment dues): date_due, date_paid, amount_due, amount_paid, is_layaway.
 
-Business definitions:
-- Revenue (gross, tax-inclusive): SUM(company_sale.total)
-- TotalSales (net, tax-exclusive): SUM(company_sale_data.LineTotal)
+Metric definitions (canonical; exclude returned unless question is about returns):
+- Revenue (gross, tax-inclusive): SUM(company_sale.total) WHERE is_sale=1 AND COALESCE(isreturned,0)=0
+- TotalSales (net, tax-exclusive): SUM(company_sale_data.LineTotal) WHERE is_sale=1 AND COALESCE(SaleReturned,0)=0
+- Margin: (LineTotal - ItemCost) / LineTotal * 100 when LineTotal > 0
+- Markup: (LineTotal - ItemCost) / ItemCost * 100 when ItemCost > 0
 
 Mandatory constraints:
 - SELECT-only query.
@@ -35,8 +37,10 @@ COPILOT_CONTEXT: dict[str, str] = {
     "sales": """
 Sales focus:
 - Prefer company_sale and company_sale_data.
-- Revenue = SUM(company_sale.total), tax inclusive.
-- TotalSales = SUM(company_sale_data.LineTotal), tax exclusive.
+- Revenue = SUM(company_sale.total) WHERE is_sale=1 AND COALESCE(isreturned,0)=0 (tax inclusive).
+- TotalSales = SUM(company_sale_data.LineTotal) WHERE is_sale=1 AND COALESCE(SaleReturned,0)=0 (tax exclusive).
+- Exclude returned sales from Revenue/TotalSales unless the question is about returns.
+- Margin: (LineTotal - ItemCost) / LineTotal * 100. Markup: (LineTotal - ItemCost) / ItemCost * 100.
 """.strip(),
     "inventory": """
 Inventory focus:

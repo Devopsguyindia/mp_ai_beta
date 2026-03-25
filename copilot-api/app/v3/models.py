@@ -103,6 +103,7 @@ class V3AskResponse(BaseModel):
     answer: str
     data: list[dict[str, Any]] = []
     insights: list[InsightItem] = []
+    follow_up_prompts: list[str] = []
     chart_spec: ChartSpec | None = None
     confidence: float = 0.0
     assumptions: list[str] = []

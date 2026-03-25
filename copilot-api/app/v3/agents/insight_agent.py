@@ -35,6 +35,18 @@ def _extract_json_payload(text: str) -> dict[str, Any]:
     return json.loads(text)
 
 
+def _parse_follow_up_prompts(payload: dict[str, Any]) -> list[str]:
+    """Extract and validate follow_up_prompts from LLM payload. Returns up to 5 strings."""
+    raw = payload.get("follow_up_prompts")
+    if not isinstance(raw, list):
+        return []
+    result: list[str] = []
+    for item in raw[:5]:
+        if isinstance(item, str) and item.strip():
+            result.append(item.strip())
+    return result
+
+
 def generate_insights_with_llm(
     *,
     question: str,
@@ -42,10 +54,10 @@ def generate_insights_with_llm(
     sql: str,
     intent: str,
     copilot: Literal["sales", "inventory", "customer", "artist", "vendor"],
-) -> list[InsightItem]:
+) -> tuple[list[InsightItem], list[str]]:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
-        return []
+        return ([], [])
 
     try:
         from openai import OpenAI
@@ -54,7 +66,7 @@ def generate_insights_with_llm(
         model = os.getenv("OPENAI_MODEL_INSIGHT", "") or os.getenv("OPENAI_MODEL_SQL", "gpt-4.1")
         system_prompt = load_prompt("insight")
         if not system_prompt:
-            return []
+            return ([], [])
 
         data_sample = _serialize_rows_for_llm(rows)
         user_prompt = (
@@ -78,7 +90,7 @@ def generate_insights_with_llm(
         payload = _extract_json_payload(content)
         raw_insights = payload.get("insights")
         if not isinstance(raw_insights, list):
-            return []
+            return ([], [])
 
         result: list[InsightItem] = []
         for item in raw_insights[:3]:
@@ -87,9 +99,10 @@ def generate_insights_with_llm(
                 detail = item.get("detail")
                 if isinstance(title, str) and isinstance(detail, str):
                     result.append(InsightItem(title=title, detail=detail))
-        return result
+        follow_up_prompts = _parse_follow_up_prompts(payload)
+        return (result, follow_up_prompts)
     except Exception:
-        return []
+        return ([], [])
 
 
 def _fallback_insights(*, rows: list[dict], question: str) -> list[InsightItem]:
@@ -125,7 +138,7 @@ def build_insights(
     sql: str | None = None,
     intent: str | None = None,
     copilot: str | None = None,
-) -> list[InsightItem]:
+) -> tuple[list[InsightItem], list[str]]:
     llm_enabled = os.getenv("V3_INSIGHT_LLM_ENABLED", "1").strip() in {"1", "true", "TRUE", "yes", "YES"}
     copilot_types: tuple[str, ...] = ("sales", "inventory", "customer", "artist", "vendor")
     valid_copilot = (copilot or "sales").strip().lower()
@@ -133,14 +146,14 @@ def build_insights(
         valid_copilot = "sales"
 
     if llm_enabled and sql and intent and os.getenv("OPENAI_API_KEY", "").strip():
-        llm_insights = generate_insights_with_llm(
+        insights, follow_up_prompts = generate_insights_with_llm(
             question=question,
             rows=rows,
             sql=sql,
             intent=intent,
             copilot=valid_copilot,  # type: ignore[arg-type]
         )
-        if llm_insights:
-            return llm_insights
+        if insights:
+            return (insights, follow_up_prompts)
 
-    return _fallback_insights(rows=rows, question=question)
+    return (_fallback_insights(rows=rows, question=question), [])

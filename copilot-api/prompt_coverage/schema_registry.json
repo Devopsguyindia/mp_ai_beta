@@ -4,8 +4,53 @@
   "global_critical_notes": [
     "When answering queries related to edition types (open, limited, unique, nonstock), always use EditionName column of company_item_data view. Do not return edition_type (0/1/2/3) to the end user.",
     "For artist names: use company_item_data's ArtistFirst and ArtistLast columns (append/concatenate them).",
-    "For vendor names: use company_item_data's VendorFirst and VendorLast columns (append/concatenate them)."
+    "For vendor names: use company_item_data's VendorFirst and VendorLast columns (append/concatenate them).",
+    "company_sale has idcompany_customer, NOT idcompany_contact. For top customers by purchases/revenue, prefer company_sale_data with GROUP BY CustomerName or idcompany_customer.",
+    "Never expose any id of any table. Never return IDs in any query to show to the user.",
+    "For artist, customer, or vendor name columns: replace null/blank/whitespace with 'Anonymous' using COALESCE(NULLIF(TRIM(name_col), ''), 'Anonymous'). Example: SELECT COALESCE(NULLIF(TRIM(CustomerName), ''), 'Anonymous') AS CustomerName, COUNT(*) AS cnt FROM company_sale_data WHERE idcompany = %(idcompany)s GROUP BY COALESCE(NULLIF(TRIM(CustomerName), ''), 'Anonymous') ORDER BY cnt DESC. Apply same pattern for ArtistName, VendorName, CustomerName.",
+    "Do NOT invent column names. Use ONLY columns listed in the schema. SaleValue does not exist. For sale value or total sales use SUM(LineTotal) or SUM(total) from company_sale_data.",
+    "Always use MM/DD/YYYY format for all dates returned to the user in every query. Format date/datetime columns in the SELECT list (e.g. MySQL: DATE_FORMAT(date_col, '%m/%d/%Y') AS alias) so displayed values are never raw ISO or ambiguous.",
+    "Always trim timestamps from dates shown to the user: never return time-of-day with dates. Use DATE() on datetime columns before formatting, or DATE_FORMAT on the date-only portion so output is strictly calendar date in MM/DD/YYYY."
   ],
+  "metric_definitions": {
+    "Revenue": {
+      "label": "Revenue (gross)",
+      "formula": "SUM(company_sale.total)",
+      "tables": ["company_sale"],
+      "filters": "is_sale=1 AND COALESCE(isreturned,0)=0",
+      "tax": "inclusive",
+      "description": "Gross sale amount including tax. Use company_sale.total. Exclude returned sales."
+    },
+    "TotalSales": {
+      "label": "Total Sales (net)",
+      "formula": "SUM(company_sale_data.LineTotal)",
+      "tables": ["company_sale_data"],
+      "filters": "is_sale=1 AND COALESCE(SaleReturned,0)=0",
+      "tax": "exclusive",
+      "description": "Net sale amount before tax. Use company_sale_data.LineTotal. Prefer for line-level analytics. Exclude returned lines."
+    },
+    "Margin": {
+      "label": "Margin (line-level)",
+      "formula": "CASE WHEN LineTotal > 0 THEN ROUND((LineTotal - IFNULL(ItemCost,0)) / LineTotal * 100, 2) ELSE NULL END",
+      "tables": ["company_sale_data"],
+      "columns_used": ["LineTotal", "ItemCost"],
+      "description": "Profit margin as percent. (LineTotal - ItemCost) / LineTotal * 100. Use ItemCost from company_sale_data."
+    },
+    "Markup": {
+      "label": "Markup (line-level)",
+      "formula": "CASE WHEN ItemCost > 0 THEN ROUND((LineTotal - ItemCost) / ItemCost * 100, 2) ELSE NULL END",
+      "tables": ["company_sale_data"],
+      "columns_used": ["LineTotal", "ItemCost"],
+      "description": "Profit markup as percent. (LineTotal - ItemCost) / ItemCost * 100."
+    },
+    "Returns": {
+      "return_sale_flag": "company_sale.isreturned=1 OR company_sale_data.SaleReturned=1",
+      "return_line_flag": "company_sale_data.is_returned=1",
+      "exclusion_rule": "When computing Revenue or TotalSales, exclude: COALESCE(isreturned,0)=0 or COALESCE(SaleReturned,0)=0",
+      "return_amount": "SUM(LineTotal) WHERE is_returned=1, or sales where isreturned=1 (total may be negative)",
+      "description": "Returned sales excluded from revenue. Use isreturned, SaleReturned, is_returned for return-specific queries."
+    }
+  },
   "tables": [
     {
       "table": "company",
@@ -179,6 +224,9 @@
     {
       "table": "company_sale",
       "purpose": "Most critical business table. Sale header for sale, approval, quote.",
+      "critical_notes": [
+        "company_sale has idcompany_customer (FK to company_customer), NOT idcompany_contact. Do not use s.idcompany_contact. To join to company_contact use company_customer: s.idcompany_customer = company_customer.idcompany_customer AND company_customer.idcompany_contact = company_contact.idcompany_contact."
+      ],
       "columns": [
         {"name": "idcompany_sale", "purpose": "PK"},
         {"name": "idcompany", "purpose": "Tenant filter (required)"},
@@ -339,14 +387,18 @@
     {
       "table": "company_sale_data",
       "purpose": "VIEW: Uniform sales view joining sale, line items, contact, location. Use for sales detail queries.",
+      "critical_notes": [
+        "To filter by customer or company name use CustomerName only. CustomerCompany does not exist in this view.",
+        "For top customers by purchases or revenue, use company_sale_data with GROUP BY CustomerName or idcompany_customer. No join to company_contact needed.",
+        "Sale value = SUM(LineTotal) or SUM(total). SaleValue is NOT a column. Use only columns from this table."
+      ],
       "columns": [
         {"name": "idcompany_sale", "purpose": "PK"},
         {"name": "idcompany_sale_line_items", "purpose": "Line item PK"},
         {"name": "idcompany", "purpose": "Tenant filter (required)"},
         {"name": "sale_date", "purpose": "Sale date"},
         {"name": "transaction_number", "purpose": "Transaction number"},
-        {"name": "CustomerName", "purpose": "Customer name from company_contact"},
-        {"name": "CustomerCompany", "purpose": "Customer company"},
+        {"name": "CustomerName", "purpose": "Customer name from company_contact; use for filtering by customer or company"},
         {"name": "ArtistName", "purpose": "Artist name from item"},
         {"name": "VendorName", "purpose": "Vendor name from item"},
         {"name": "item_title", "purpose": "Item title"},
@@ -377,16 +429,74 @@
       ]
     },
     {
+      "table": "tb_report_template",
+      "purpose": "Global report templates. Base reports available to all galleries.",
+      "critical_notes": [
+        "No idcompany filter; these are shared across all galleries.",
+        "report_id in report_usage may reference idreport_template (global) or idcompany_report_templates (gallery-customized)."
+      ],
+      "columns": [
+        {"name": "idreport_template", "purpose": "PK"},
+        {"name": "report", "purpose": "Report blob"},
+        {"name": "name", "purpose": "Report name"},
+        {"name": "category", "purpose": "Report category"},
+        {"name": "DataSetName", "purpose": "Dataset name"},
+        {"name": "script", "purpose": "Report script"},
+        {"name": "report_type", "purpose": "Report type"},
+        {"name": "margin_top", "purpose": "Page margin top"},
+        {"name": "margin_bottom", "purpose": "Page margin bottom"},
+        {"name": "margin_left", "purpose": "Page margin left"},
+        {"name": "margin_right", "purpose": "Page margin right"},
+        {"name": "page_width", "purpose": "Page width"},
+        {"name": "page_height", "purpose": "Page height"},
+        {"name": "paper_size", "purpose": "Paper size"},
+        {"name": "whole_number", "purpose": "Whole number format"}
+      ]
+    },
+    {
+      "table": "tb_company_report_templates",
+      "purpose": "Gallery-customized report templates. Overrides or copies of global reports, scoped by idcompany.",
+      "critical_notes": [
+        "ALWAYS add idcompany filter so the gallery sees only its own customized reports."
+      ],
+      "columns": [
+        {"name": "idcompany_report_templates", "purpose": "PK"},
+        {"name": "idcompany", "purpose": "Tenant filter (required)"},
+        {"name": "idreport_template", "purpose": "FK to tb_report_template (base template)"},
+        {"name": "report", "purpose": "Report blob"},
+        {"name": "name", "purpose": "Report name"},
+        {"name": "category", "purpose": "Report category"},
+        {"name": "DataSetName", "purpose": "Dataset name"},
+        {"name": "script", "purpose": "Report script"},
+        {"name": "report_type", "purpose": "Report type"},
+        {"name": "margin_top", "purpose": "Page margin top"},
+        {"name": "margin_bottom", "purpose": "Page margin bottom"},
+        {"name": "margin_left", "purpose": "Page margin left"},
+        {"name": "margin_right", "purpose": "Page margin right"},
+        {"name": "page_width", "purpose": "Page width"},
+        {"name": "page_height", "purpose": "Page height"},
+        {"name": "paper_size", "purpose": "Paper size"},
+        {"name": "whole_number", "purpose": "Whole number format"}
+      ]
+    },
+    {
       "table": "report_usage",
-      "purpose": "Report usage tracking",
+      "purpose": "Tracks which reports galleries run. Used for predictive suggestions (top reports, smart defaults, run again).",
+      "critical_notes": [
+        "ALWAYS add idcompany filter so the gallery sees only its own usage.",
+        "report_id may map to idreport_template (global) or idcompany_report_templates (gallery-customized)."
+      ],
       "columns": [
         {"name": "id", "purpose": "PK"},
         {"name": "idcompany", "purpose": "Tenant filter (required)"},
-        {"name": "user_id", "purpose": "User ID"},
-        {"name": "report_id", "purpose": "Report ID"},
-        {"name": "filter_data", "purpose": "Filter data"},
-        {"name": "usage_count", "purpose": "Usage count"},
-        {"name": "last_used", "purpose": "Last used datetime"}
+        {"name": "user_id", "purpose": "User who ran the report"},
+        {"name": "report_id", "purpose": "Report ID (idreport_template or idcompany_report_templates)"},
+        {"name": "filter_data", "purpose": "JSON of filter state (mailing dates, sign, orderby, etc.)"},
+        {"name": "filter_hash", "purpose": "Hash of filter_data for deduplication and similarity"},
+        {"name": "usage_count", "purpose": "Number of times this filter combo was used"},
+        {"name": "last_used", "purpose": "Last run datetime"},
+        {"name": "created_at", "purpose": "First recorded usage"},
+        {"name": "updated_at", "purpose": "Last updated"}
       ]
     }
   ]

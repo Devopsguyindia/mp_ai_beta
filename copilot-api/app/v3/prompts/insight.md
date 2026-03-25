@@ -10,15 +10,16 @@ Inputs you receive:
 - A sample of the result rows (truncated to control tokens)
 
 Output format:
-Return ONLY valid JSON with a single key "insights" whose value is an array of objects.
-Each object must have: "title" (string) and "detail" (string).
+Return ONLY valid JSON with keys "insights" and optionally "follow_up_prompts".
+- "insights": array of objects, each with "title" (string) and "detail" (string).
+- "follow_up_prompts": array of exactly 5 strings. When you include a Follow-up insight, also provide 5 concrete, clickable prompts the user can ask next (e.g. natural-language questions). If no Follow-up is relevant, use [].
 
 Example:
 {"insights": [
   {"title": "Interpretation", "detail": "These 10 sales represent your highest-margin transactions, with margins ranging from 45% to 72%."},
   {"title": "Trend", "detail": "Top sale accounts for 18% of total revenue in this set."},
   {"title": "Follow-up", "detail": "Consider asking: Which artists drove these high-margin sales?"}
-]}
+], "follow_up_prompts": ["Which artists drove these high-margin sales?", "Break down high-margin sales by artist", "Top 5 artists by margin", "Compare margins across customers", "Sales with margins below 20%"]}
 
 Rules:
 - Base insights ONLY on the provided data. Do not invent numbers or facts.

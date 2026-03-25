@@ -1,7 +1,12 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService, SessionInfo } from './auth.service';
-import { ChatResponse, CopilotApiService } from './copilot-api.service';
+import {
+  ChatResponse,
+  CopilotApiService,
+  ReportSuggestionsResponse
+} from './copilot-api.service';
 import { environment } from '../environments/environment';
 
 export interface ChartDataSets {
@@ -25,14 +30,37 @@ export class DashboardComponent implements OnInit {
   response: ChatResponse | null = null;
   history: string[] = [];
   readonly useV3Ask = !!(environment as any).v3AskEnabled;
+  readonly reportSuggestionsFeatureEnabled =
+    (environment as { reportSuggestionsEnabled?: boolean }).reportSuggestionsEnabled !== false;
 
-  suggestedPrompts: string[] = [
+  reportScope: 'gallery' | 'me' = 'gallery';
+  reportSuggestionsLoading = false;
+  reportSuggestionsError: string | null = null;
+  reportSuggestions: ReportSuggestionsResponse | null = null;
+  /** Disables the matching Re-run button while the proxy request is in flight. */
+  rerunBusyHash: string | null = null;
+
+  readonly suggestedPrompts: string[] = [
     'recent 10 sold items',
     'inventory count and qoh summary for this month',
     'top 10 customers by ltv',
     'artist sales performance for last 90 days',
     'vendor outstanding payables top 20'
   ];
+
+  /** Prompts to display: follow-up suggestions from response when available, else static list. */
+  get displayedPrompts(): string[] {
+    const fp = this.response?.follow_up_prompts;
+    if (Array.isArray(fp) && fp.length > 0) {
+      return fp;
+    }
+    return this.suggestedPrompts;
+  }
+
+  /** True when displaying LLM-generated follow-up prompts (vs static suggested prompts). */
+  get hasFollowUpPrompts(): boolean {
+    return Array.isArray(this.response?.follow_up_prompts) && this.response.follow_up_prompts.length > 0;
+  }
 
   constructor(
     private auth: AuthService,
@@ -47,6 +75,132 @@ export class DashboardComponent implements OnInit {
       return;
     }
     this.loadHistory();
+    if (this.reportSuggestionsFeatureEnabled) {
+      this.loadReportSuggestions();
+    }
+  }
+
+  private sessionUserIdNumber(): number | undefined {
+    const u = this.session?.userid;
+    if (u == null || u === '') {
+      return undefined;
+    }
+    const n = Number(u);
+    return Number.isFinite(n) ? n : undefined;
+  }
+
+  setReportScope(scope: 'gallery' | 'me'): void {
+    this.reportScope = scope;
+    this.loadReportSuggestions();
+  }
+
+  loadReportSuggestions(): void {
+    if (!this.reportSuggestionsFeatureEnabled || !this.session?.idcompany) {
+      return;
+    }
+    if (this.reportScope === 'me' && this.sessionUserIdNumber() === undefined) {
+      this.reportSuggestionsError = 'Your session has no user id; switch to Gallery scope.';
+      this.reportSuggestions = null;
+      return;
+    }
+
+    this.reportSuggestionsLoading = true;
+    this.reportSuggestionsError = null;
+
+    const uid = this.sessionUserIdNumber();
+    this.api
+      .reportSuggestions({
+        idcompany: Number(this.session.idcompany),
+        access_token: this.session.access_token,
+        user_id: this.reportScope === 'me' && uid !== undefined ? uid : undefined,
+        top_n: 5,
+        recent_n: 8,
+        smart_default_limit: 12,
+        // Full JSON required for Re-run in ERP (proxy GET with same params).
+        truncate_filter_data: false,
+        filter_data_max_chars: 50000
+      })
+      .subscribe({
+        next: (res) => {
+          this.reportSuggestions = res;
+          this.reportSuggestionsLoading = false;
+          if (!res.ok && res.warnings?.length) {
+            this.reportSuggestionsError = res.warnings.join(' ');
+          }
+        },
+        error: (err) => {
+          this.reportSuggestionsLoading = false;
+          this.reportSuggestions = null;
+          const d = err?.error?.detail;
+          let msg: string;
+          if (d?.error === 'report_suggestions_disabled') {
+            msg = 'Report suggestions are disabled on the server.';
+          } else if (Array.isArray(d)) {
+            msg = d
+              .map((v: { loc?: string[]; msg?: string }) =>
+                [v.loc?.join('.'), v.msg].filter(Boolean).join(': ')
+              )
+              .join('; ');
+          } else if (typeof d === 'string') {
+            msg = d;
+          } else {
+            msg = err?.error?.message || err?.message || 'Could not load report insights.';
+          }
+          this.reportSuggestionsError = msg || JSON.stringify(err?.error || err);
+        }
+      });
+  }
+
+  reportInsightsEmpty(): boolean {
+    const r = this.reportSuggestions;
+    if (!r) {
+      return true;
+    }
+    return (
+      !r.top_reports?.length &&
+      !r.recent_runs?.length &&
+      !r.smart_defaults?.length &&
+      !r.predict_hints?.length
+    );
+  }
+
+  rerunReport(filterData: string | null | undefined, filterHash: string): void {
+    const fd = filterData?.trim();
+    if (!fd || !this.session?.access_token) {
+      return;
+    }
+    this.rerunBusyHash = filterHash;
+    this.api.rerunReport({ access_token: this.session.access_token, filter_data: fd }).subscribe({
+      next: (resp) => {
+        const blob = resp.body;
+        this.rerunBusyHash = null;
+        if (!blob || blob.size === 0) {
+          this.reportSuggestionsError = 'Re-run returned an empty response.';
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener,noreferrer');
+        setTimeout(() => URL.revokeObjectURL(url), 120000);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.rerunBusyHash = null;
+        const body = err.error;
+        if (body instanceof Blob) {
+          body.text().then((t) => {
+            try {
+              const j = JSON.parse(t) as { detail?: { message?: string } | string };
+              const d = j.detail;
+              this.reportSuggestionsError =
+                typeof d === 'string' ? d : d?.message || t.slice(0, 600) || err.message;
+            } catch {
+              this.reportSuggestionsError = t.slice(0, 600) || err.message;
+            }
+          });
+        } else {
+          this.reportSuggestionsError = err.message || 'Re-run failed.';
+        }
+      }
+    });
   }
 
   private historyScopeStable(): string {

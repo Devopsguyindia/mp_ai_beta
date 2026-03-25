@@ -13,6 +13,22 @@ _DEFAULT_PRICE_NOW_COL = "PriceNow"
 _DEFAULT_ITEM_TITLE_COL = "item_title"
 _DEFAULT_SALE_RETURNED_COL = "SaleReturned"
 
+# User-facing date format (matches schema_registry global_critical_notes)
+_DATE_FMT_US = "%m/%d/%Y"
+
+
+def _date_expr(col_sql: str) -> str:
+    """MySQL expression for SELECT output: calendar date only, US format (no time)."""
+    return f"DATE_FORMAT(DATE({col_sql}), '{_DATE_FMT_US}')"
+
+
+def _month_bucket_us_expr(col_sql: str) -> str:
+    """First day of month as MM/DD/YYYY for monthly aggregates."""
+    return (
+        f"DATE_FORMAT(DATE(CONCAT(DATE_FORMAT({col_sql}, '%Y-%m'), '-01')), '{_DATE_FMT_US}')"
+    )
+
+
 # Concept -> substrings that must appear in column name (case-insensitive)
 _CONCEPT_PATTERNS: dict[str, list[str]] = {
     "customer_name": ["customer", "name"],
@@ -246,7 +262,7 @@ def generate_query(
             SELECT
               c.idcompany_contact,
               c.full_name AS customer_name,
-              MAX(s.sale_date) AS last_purchase_date,
+              {_date_expr("MAX(s.sale_date)")} AS last_purchase_date,
               ROUND(COALESCE(SUM(s.total), 0), 2) AS lifetime_revenue_gross
             FROM company_contact_data1 c
             LEFT JOIN company_sale s
@@ -256,7 +272,7 @@ def generate_query(
              AND COALESCE(s.isreturned, 0) = 0
             WHERE c.idcompany = %(idcompany)s
             GROUP BY c.idcompany_contact, c.full_name
-            HAVING last_purchase_date IS NULL OR last_purchase_date < DATE_SUB(NOW(), INTERVAL 90 DAY)
+            HAVING MAX(s.sale_date) IS NULL OR MAX(s.sale_date) < DATE_SUB(NOW(), INTERVAL 90 DAY)
             ORDER BY lifetime_revenue_gross DESC
             LIMIT {limit}
             """.strip(),
@@ -379,7 +395,7 @@ def generate_query(
               p.idcompany_sale,
               s.idcompany_customer AS idcompany_vendor,
               c.full_name AS vendor_name,
-              p.date_due,
+              {_date_expr("p.date_due")} AS date_due,
               ROUND(p.amount_due - COALESCE(p.amount_paid, 0), 2) AS overdue_amount
             FROM company_sale_payment p
             JOIN company_sale s
@@ -401,11 +417,12 @@ def generate_query(
         )
 
     if intent == "vendor_spend_trend":
+        mb = _month_bucket_us_expr("s.sale_date")
         return QuerySpec(
             intent=intent,
             sql=f"""
             SELECT
-              DATE_FORMAT(s.sale_date, '%Y-%m') AS month_key,
+              {mb} AS month_key,
               ROUND(SUM(s.total), 2) AS spend_gross
             FROM company_sale s
             WHERE s.idcompany = %(idcompany)s
@@ -413,7 +430,7 @@ def generate_query(
               AND COALESCE(s.isreturned, 0) = 0
               AND s.sale_date >= {window_expr}
             GROUP BY DATE_FORMAT(s.sale_date, '%Y-%m')
-            ORDER BY month_key
+            ORDER BY MIN(s.sale_date)
             LIMIT {limit}
             """.strip(),
             params={},
@@ -433,7 +450,7 @@ def generate_query(
             intent=intent,
             sql=f"""
             SELECT
-              d.sale_date,
+              {_date_expr("d.sale_date")} AS sale_date,
               d.transaction_number,
               d.idcompany_item,
               d.{it_col},

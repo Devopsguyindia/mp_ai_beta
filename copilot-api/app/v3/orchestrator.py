@@ -69,7 +69,7 @@ def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
     timeout_ms = int(os.getenv("MYSQL_QUERY_TIMEOUT_MS", "8000"))
     result = run_select_query(sql=validated.sql, params=params, max_rows=max_rows, timeout_ms=timeout_ms)
 
-    insights = build_insights(
+    insights, follow_up_prompts = build_insights(
         rows=result.rows,
         question=req.question,
         sql=validated.sql,
@@ -135,6 +135,7 @@ def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
         answer=answer,
         data=data,
         insights=insights,
+        follow_up_prompts=follow_up_prompts,
         chart_spec=chart_spec,
         confidence=planner.confidence,
         assumptions=assumptions,

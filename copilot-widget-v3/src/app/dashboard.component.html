@@ -1,7 +1,10 @@
 <div class="page">
   <header class="topbar">
     <div>
-      <div class="title">MP AI Copilot Dashboard</div>
+      <div class="titleRow">
+        <span class="title">MP AI Copilot Dashboard</span>
+        <span class="betaBadge">BETA</span>
+      </div>
       <div class="sub">
         Welcome {{ session?.firstname || session?.username }} @ {{ session?.company_name }}
         <span class="role">({{ session?.role_name || 'User' }})</span>
@@ -53,7 +56,7 @@
         </label>
 
         <div class="actions">
-          <button (click)="run()" [disabled]="loading || !question?.trim()">
+          <button (click)="run()" [disabled]="loading || !question?.trim()" [class.loading]="loading">
             {{ loading ? 'Thinking...' : 'Ask Me...' }}
           </button>
           <span class="meta" *ngIf="response?.debug?.elapsed_ms">Last query: {{ response?.debug?.elapsed_ms }} ms</span>
@@ -81,8 +84,8 @@
 
       <aside class="panel side">
         <div class="section">
-          <div class="sectionTitle">Suggested prompts (auto copilot)</div>
-          <button class="pill" *ngFor="let s of suggestedPrompts" (click)="usePrompt(s)">{{ s }}</button>
+          <div class="sectionTitle">{{ hasFollowUpPrompts ? 'Related follow-ups (AI)' : 'Suggested prompts (auto copilot)' }}</div>
+          <button class="pill" [class.pillFollowUp]="hasFollowUpPrompts" *ngFor="let s of displayedPrompts" (click)="usePrompt(s)">{{ s }}</button>
         </div>
 
         <div class="section">
@@ -94,7 +97,15 @@
 
     <section class="panel resultsPanel">
       <div class="resultsHeader">
-        <div class="resultsTitle">Query Output</div>
+        <div class="resultsTitleWithIcon">
+          <span class="resultsTitleGlyph" aria-hidden="true">
+            <svg class="sectionHeaderIcon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" />
+              <path d="M20 20l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </span>
+          <div class="resultsTitle">Query Output</div>
+        </div>
         <div class="resultsSub">
           <span *ngIf="useV3Ask">V3</span>
           <span *ngIf="response?.debug?.request_id">Request {{ response?.debug?.request_id }}</span>
@@ -175,6 +186,172 @@
       <div class="section debugBlock" *ngIf="debug && response?.debug">
         <div class="sectionTitle">Show work</div>
         <pre>{{ response.debug | json }}</pre>
+      </div>
+    </section>
+
+    <section class="reportInsightsPanel" *ngIf="reportSuggestionsFeatureEnabled">
+      <div class="reportInsightsInner">
+        <header class="reportInsightsHeader">
+          <div class="reportInsightsBrand">
+            <span class="reportInsightsGlyph" aria-hidden="true">
+              <svg class="sectionHeaderIcon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <line x1="9" y1="13" x2="15" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <line x1="9" y1="17" x2="13" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </span>
+            <div class="reportInsightsHeadlines">
+              <div class="reportInsightsTitleRow">
+                <h2 class="reportInsightsTitle">Report usage insights</h2>
+                <span class="reportInsightsTag">Masterpiece Reports</span>
+              </div>
+              <p class="reportInsightsSub">
+                Frequently used reports with saved filters. Re-run generates the same report from Masterpiece (via secure proxy).
+              </p>
+            </div>
+          </div>
+          <div class="reportInsightsToolbar">
+            <div class="reportScopeSwitch" role="group" aria-label="Usage scope">
+              <button
+                type="button"
+                class="reportScopeBtn"
+                [class.reportScopeBtnActive]="reportScope === 'gallery'"
+                (click)="setReportScope('gallery')"
+              >
+                Whole gallery
+              </button>
+              <button
+                type="button"
+                class="reportScopeBtn"
+                [class.reportScopeBtnActive]="reportScope === 'me'"
+                (click)="setReportScope('me')"
+              >
+                Just me
+              </button>
+            </div>
+            <button
+              type="button"
+              class="reportInsightsRefresh"
+              (click)="loadReportSuggestions()"
+              [disabled]="reportSuggestionsLoading"
+            >
+              {{ reportSuggestionsLoading ? 'Loading…' : 'Refresh' }}
+            </button>
+          </div>
+        </header>
+
+        <div class="reportInsightsBanner" *ngIf="reportSuggestionsError">
+          {{ reportSuggestionsError }}
+        </div>
+
+        <div class="reportInsightsSkeleton" *ngIf="reportSuggestionsLoading && !reportSuggestions">
+          Loading report insights…
+        </div>
+
+        <div
+          class="reportInsightsEmpty"
+          *ngIf="!reportSuggestionsLoading && reportSuggestions && reportInsightsEmpty() && !reportSuggestionsError"
+        >
+          No report usage recorded yet for this scope. Run reports in the ERP to see suggestions here.
+        </div>
+
+        <div class="reportInsightsGrid" *ngIf="reportSuggestions && !reportInsightsEmpty()">
+          <div class="reportInsightsCol">
+            <h3 class="reportInsightsColTitle">Top reports</h3>
+            <p class="reportInsightsColHint">By total runs (usage count)</p>
+            <ul class="reportInsightsList">
+              <li *ngFor="let t of (reportSuggestions.top_reports || [])" class="reportInsightsRow">
+                <span class="reportInsightsRank">{{ t.report_id }}</span>
+                <span class="reportInsightsMain">
+                  <span class="reportInsightsName">{{ t.report_name || 'Report ' + t.report_id }}</span>
+                  <span class="reportInsightsMeta" *ngIf="t.name_source">{{ t.name_source }}</span>
+                </span>
+                <span class="reportInsightsStat">{{ t.total_usage }}×</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="reportInsightsCol">
+            <h3 class="reportInsightsColTitle">Recent runs</h3>
+            <p class="reportInsightsColHint">Filters you used (non-empty only). Re-run uses the same settings.</p>
+            <ul class="reportInsightsList">
+              <li *ngFor="let r of (reportSuggestions.recent_runs || [])" class="reportInsightsRow reportInsightsRowStack">
+                <div class="reportInsightsRowTop">
+                  <span class="reportInsightsName">{{ r.report_name || 'Report ' + r.report_id }}</span>
+                  <span class="reportInsightsStat">{{ r.usage_count }}×</span>
+                </div>
+                <div class="reportInsightsRowSub" *ngIf="r.last_used">Last run: {{ r.last_used }}</div>
+                <div class="reportFilterList" *ngIf="(r.filter_data | reportFilterSummary).length">
+                  <div class="reportFilterLine" *ngFor="let line of (r.filter_data | reportFilterSummary)">
+                    <span class="reportFilterLabel">{{ line.label }}</span>
+                    <span class="reportFilterValue">{{ line.value }}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="reportRerunBtn"
+                  *ngIf="r.filter_data"
+                  (click)="rerunReport(r.filter_data, r.filter_hash)"
+                  [disabled]="rerunBusyHash === r.filter_hash"
+                >
+                  {{ rerunBusyHash === r.filter_hash ? 'Opening…' : 'Re-run in ERP' }}
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <div class="reportInsightsCol">
+            <h3 class="reportInsightsColTitle">Smart defaults</h3>
+            <p class="reportInsightsColHint">Most-used filter set per top report</p>
+            <ul class="reportInsightsList">
+              <li *ngFor="let s of (reportSuggestions.smart_defaults || [])" class="reportInsightsRow reportInsightsRowStack">
+                <div class="reportInsightsRowTop">
+                  <span class="reportInsightsName">{{ s.report_name || 'Report ' + s.report_id }}</span>
+                  <span class="reportInsightsStat">{{ s.usage_sum }}×</span>
+                </div>
+                <div class="reportFilterList" *ngIf="(s.filter_data | reportFilterSummary).length">
+                  <div class="reportFilterLine" *ngFor="let line of (s.filter_data | reportFilterSummary)">
+                    <span class="reportFilterLabel">{{ line.label }}</span>
+                    <span class="reportFilterValue">{{ line.value }}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="reportRerunBtn"
+                  *ngIf="s.filter_data"
+                  (click)="rerunReport(s.filter_data, s.filter_hash)"
+                  [disabled]="rerunBusyHash === s.filter_hash"
+                >
+                  {{ rerunBusyHash === s.filter_hash ? 'Opening…' : 'Re-run in ERP' }}
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <div class="reportInsightsCol">
+            <h3 class="reportInsightsColTitle">Patterns</h3>
+            <p class="reportInsightsColHint">Busiest weekdays (top report)</p>
+            <ul class="reportInsightsList" *ngIf="reportSuggestions.predict_hints?.length">
+              <li *ngFor="let h of reportSuggestions.predict_hints" class="reportInsightsRow reportInsightsRowStack">
+                <div class="reportInsightsRowTop">
+                  <span class="reportInsightsName">{{ h.weekday_label }}</span>
+                  <span class="reportInsightsStat">{{ h.run_count }}×</span>
+                </div>
+                <div class="reportInsightsRowSub">{{ h.report_name || ('Report ' + h.report_id) }}</div>
+              </li>
+            </ul>
+            <p class="reportInsightsColHint" *ngIf="!reportSuggestions.predict_hints?.length">
+              Not enough history yet (need repeated weekdays).
+            </p>
+          </div>
+        </div>
       </div>
     </section>
   </main>
