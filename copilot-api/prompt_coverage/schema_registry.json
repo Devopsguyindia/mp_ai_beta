@@ -10,7 +10,8 @@
     "For artist, customer, or vendor name columns: replace null/blank/whitespace with 'Anonymous' using COALESCE(NULLIF(TRIM(name_col), ''), 'Anonymous'). Example: SELECT COALESCE(NULLIF(TRIM(CustomerName), ''), 'Anonymous') AS CustomerName, COUNT(*) AS cnt FROM company_sale_data WHERE idcompany = %(idcompany)s GROUP BY COALESCE(NULLIF(TRIM(CustomerName), ''), 'Anonymous') ORDER BY cnt DESC. Apply same pattern for ArtistName, VendorName, CustomerName.",
     "Do NOT invent column names. Use ONLY columns listed in the schema. SaleValue does not exist. For sale value or total sales use SUM(LineTotal) or SUM(total) from company_sale_data.",
     "Always use MM/DD/YYYY format for all dates returned to the user in every query. Format date/datetime columns in the SELECT list (e.g. MySQL: DATE_FORMAT(date_col, '%m/%d/%Y') AS alias) so displayed values are never raw ISO or ambiguous.",
-    "Always trim timestamps from dates shown to the user: never return time-of-day with dates. Use DATE() on datetime columns before formatting, or DATE_FORMAT on the date-only portion so output is strictly calendar date in MM/DD/YYYY."
+    "Always trim timestamps from dates shown to the user: never return time-of-day with dates. Use DATE() on datetime columns before formatting, or DATE_FORMAT on the date-only portion so output is strictly calendar date in MM/DD/YYYY.",
+    "Date column naming: company_sale_data uses sale_date for transaction date (WHERE/GROUP BY). company_item_data uses SoldDate for inventory date-sold context. Do not use SoldDate in company_sale_data queries; do not use sale_date on company_item_data for the same semantics as SoldDate."
   ],
   "metric_definitions": {
     "Revenue": {
@@ -353,7 +354,8 @@
         "Item may have a vendor or may not. idcompany_vendor can be NULL.",
         "edition_type: 0=Unique (qoh max 1), 1=Open (qoh is actual qty), 2=Limited (ed_size holds size), 3=NonStock.",
         "For sale/revenue/margin: actual sale price is in company_sale_line_items.price_now, not artprice. art_cost is purchase cost.",
-        "company_item_data does NOT have is_delete, total_asking_price, stock_location. Use LocationName (not stock_location). Use (qoh * artprice) for value (not total_asking_price). Omit is_delete filter when using company_item_data."
+        "company_item_data does NOT have is_delete, total_asking_price, stock_location. Use LocationName (not stock_location). Use (qoh * artprice) for value (not total_asking_price). Omit is_delete filter when using company_item_data.",
+        "This view has SoldDate for inventory date-sold context; it does NOT have sale_date. For line-level sales dates use company_sale_data.sale_date."
       ],
       "columns": [
         {"name": "idcompany_item", "purpose": "PK"},
@@ -390,7 +392,9 @@
       "critical_notes": [
         "To filter by customer or company name use CustomerName only. CustomerCompany does not exist in this view.",
         "For top customers by purchases or revenue, use company_sale_data with GROUP BY CustomerName or idcompany_customer. No join to company_contact needed.",
-        "Sale value = SUM(LineTotal) or SUM(total). SaleValue is NOT a column. Use only columns from this table."
+        "Sale value = SUM(LineTotal) or SUM(total). SaleValue is NOT a column. Use only columns from this table.",
+        "Work title column is item_title (not ItemName). Artist display column is ArtistName (company_item_data uses ArtName; do not mix). Edition type label: EditionName or item_edition_type.",
+        "Date filters and recent sales: use sale_date only. This view does NOT have SoldDate (that column exists on company_item_data, not here)."
       ],
       "columns": [
         {"name": "idcompany_sale", "purpose": "PK"},

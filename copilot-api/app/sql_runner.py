@@ -11,6 +11,8 @@ import mysql.connector
 class QueryResult:
     columns: list[str]
     rows: list[dict[str, Any]]
+    # True when the query returned more rows than max_rows (extra rows were drained, not returned).
+    truncated: bool = False
 
 
 def _connect():
@@ -45,9 +47,18 @@ def run_select_query(*, sql: str, params: dict[str, Any], max_rows: int, timeout
                 if i >= max_rows:
                     break
                 rows.append(row)
+            # Unbuffered cursor: must consume the rest of the result set before close/execute
+            # or mysql-connector raises InterfaceError: Unread result found (common for capped
+            # "trend over time" queries that return more rows than MYSQL_MAX_ROWS).
+            remainder: list[dict[str, Any]] = []
+            try:
+                remainder = list(cur.fetchall())
+            except Exception:
+                pass
+            truncated = len(remainder) > 0
 
             columns = list(rows[0].keys()) if rows else []
-            return QueryResult(columns=columns, rows=rows)
+            return QueryResult(columns=columns, rows=rows, truncated=truncated)
         finally:
             cur.close()
     finally:

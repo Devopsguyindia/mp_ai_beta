@@ -107,4 +107,8 @@ class V3AskResponse(BaseModel):
     chart_spec: ChartSpec | None = None
     confidence: float = 0.0
     assumptions: list[str] = []
+    row_limit_notice: str | None = Field(
+        default=None,
+        description="When MYSQL_MAX_ROWS caps returned rows; UI should warn so trends are not misread.",
+    )
     debug: V3DebugInfo | None = None

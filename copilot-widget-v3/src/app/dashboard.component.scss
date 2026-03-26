@@ -252,6 +252,13 @@ textarea {
 .resultsSub {
   font-size: 11px;
   opacity: 0.7;
+
+  .resultsBrand {
+    opacity: 1;
+    font-weight: 600;
+    color: #d4a84b;
+    margin-right: 8px;
+  }
 }
 
 .error {
@@ -260,6 +267,94 @@ textarea {
   padding: 10px;
   background: rgba(255, 50, 50, 0.12);
   border: 1px solid rgba(255, 120, 120, 0.35);
+}
+
+.rowLimitNotice {
+  margin-top: 12px;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fde68a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.queryOutputLoader {
+  margin-top: 12px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.08);
+}
+
+.queryOutputLoaderTitle {
+  font-weight: 600;
+  font-size: 15px;
+  color: #e7ebf3;
+  margin-bottom: 6px;
+}
+
+.queryOutputLoaderSub {
+  font-size: 12px;
+  opacity: 0.75;
+  margin: 0 0 16px;
+  color: #e7ebf3;
+}
+
+.skeletonTable {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.skeletonRow.skeletonHeader {
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.skeletonLine {
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(34, 211, 238, 0.18) 45%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 220% 100%;
+  animation: skeletonShimmer 1.35s ease-in-out infinite;
+}
+
+.skeletonLineShort {
+  flex: 0 0 18%;
+  min-width: 48px;
+}
+
+.skeletonLineMed {
+  flex: 0 0 28%;
+  min-width: 72px;
+}
+
+.skeletonLineLong {
+  flex: 1 1 auto;
+  min-width: 100px;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .errorTitle, .answerTitle, .resultsTitle, .sectionTitle {
@@ -332,6 +427,37 @@ th {
   background: rgba(255, 255, 255, 0.05);
   cursor: pointer;
   font-size: 12px;
+}
+
+/* Cap visible height to ~5 prompts; scroll when history has more. */
+.promptHistoryScroll {
+  max-height: 16rem;
+  overflow-y: auto;
+  padding-right: 2px;
+  margin-right: -2px;
+  scrollbar-gutter: stable;
+}
+
+.promptHistoryScroll .historyItem:last-child {
+  margin-bottom: 0;
+}
+
+.promptHistoryScroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.promptHistoryScroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+}
+
+.promptHistoryScroll::-webkit-scrollbar-thumb {
+  background: rgba(132, 204, 22, 0.45);
+  border-radius: 4px;
+}
+
+.promptHistoryScroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(132, 204, 22, 0.65);
 }
 
 .insightLabel {

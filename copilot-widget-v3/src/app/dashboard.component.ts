@@ -40,12 +40,16 @@ export class DashboardComponent implements OnInit {
   /** Disables the matching Re-run button while the proxy request is in flight. */
   rerunBusyHash: string | null = null;
 
+  /** Placeholder row indices for the query-output skeleton loader (Option A). */
+  readonly queryLoaderSkeletonRows = [0, 1, 2, 3];
+
+  /** Static fallbacks when the API does not return follow_up_prompts (mix: sales x2, inventory, artist, vendor). */
   readonly suggestedPrompts: string[] = [
-    'recent 10 sold items',
-    'inventory count and qoh summary for this month',
-    'top 10 customers by ltv',
-    'artist sales performance for last 90 days',
-    'vendor outstanding payables top 20'
+    'Top customers by purchase total in the last 90 days',
+    'Monthly revenue trend from line sales for the last 12 months',
+    'Inventory quantity on hand summary by stock location',
+    'Top selling artists by line total in the last 90 days',
+    'Top vendors by outstanding payables'
   ];
 
   /** Prompts to display: follow-up suggestions from response when available, else static list. */
@@ -128,12 +132,16 @@ export class DashboardComponent implements OnInit {
             this.reportSuggestionsError = res.warnings.join(' ');
           }
         },
-        error: (err) => {
+        error: (err: HttpErrorResponse) => {
           this.reportSuggestionsLoading = false;
           this.reportSuggestions = null;
           const d = err?.error?.detail;
           let msg: string;
-          if (d?.error === 'report_suggestions_disabled') {
+          if (err.status === 0) {
+            msg =
+              'Cannot reach the report API (network/CORS or server not running). ' +
+              `Check that the backend is up at ${environment.copilotApiBaseUrl} and the page origin is allowed by CORS.`;
+          } else if (d?.error === 'report_suggestions_disabled') {
             msg = 'Report suggestions are disabled on the server.';
           } else if (Array.isArray(d)) {
             msg = d
@@ -271,6 +279,10 @@ export class DashboardComponent implements OnInit {
     const next = [prompt, ...this.history.filter((h) => h !== prompt)].slice(0, 10);
     this.history = next;
     localStorage.setItem(this.historyKey(), JSON.stringify(next));
+  }
+
+  trackByIndex(index: number, _item: number): number {
+    return index;
   }
 
   usePrompt(prompt: string): void {

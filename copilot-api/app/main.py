@@ -107,6 +107,7 @@ class ChatResponse(BaseModel):
     answer: str
     data: list[dict[str, Any]] | None = None
     debug: DebugInfo | None = None
+    row_limit_notice: str | None = None
 
 
 def _decode_jwt_payload_unverified(token: str) -> dict[str, Any]:
@@ -578,7 +579,13 @@ def chat(req: ChatRequest) -> ChatResponse:
             contract_guardrails=contract_guardrails,
         )
 
-    return ChatResponse(answer=answer, data=result.rows, debug=debug)
+    row_limit_notice = None
+    if result.truncated:
+        row_limit_notice = (
+            f"Only the first {max_rows} rows are shown (Copilot default row limit). "
+            "More rows matched your question but were not returned—narrow the date range or add filters."
+        )
+    return ChatResponse(answer=answer, data=result.rows, debug=debug, row_limit_notice=row_limit_notice)
 
 
 @app.post("/v3/ask", response_model=V3AskResponse)

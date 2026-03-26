@@ -88,14 +88,16 @@
           <button class="pill" [class.pillFollowUp]="hasFollowUpPrompts" *ngFor="let s of displayedPrompts" (click)="usePrompt(s)">{{ s }}</button>
         </div>
 
-        <div class="section">
+        <div class="section promptHistorySection">
           <div class="sectionTitle">Last 10 prompts</div>
-          <div class="historyItem" *ngFor="let h of history" (click)="usePrompt(h)">{{ h }}</div>
+          <div class="promptHistoryScroll">
+            <div class="historyItem" *ngFor="let h of history" (click)="usePrompt(h)">{{ h }}</div>
+          </div>
         </div>
       </aside>
     </section>
 
-    <section class="panel resultsPanel">
+    <section class="panel resultsPanel" [attr.aria-busy]="loading">
       <div class="resultsHeader">
         <div class="resultsTitleWithIcon">
           <span class="resultsTitleGlyph" aria-hidden="true">
@@ -107,11 +109,29 @@
           <div class="resultsTitle">Query Output</div>
         </div>
         <div class="resultsSub">
-          <span *ngIf="useV3Ask">V3</span>
+          <span *ngIf="useV3Ask" class="resultsBrand">Masterpiece</span>
           <span *ngIf="response?.debug?.request_id">Request {{ response?.debug?.request_id }}</span>
         </div>
       </div>
 
+      <div class="queryOutputLoader" *ngIf="loading" role="status" aria-live="polite">
+        <div class="queryOutputLoaderTitle">Analyzing your question…</div>
+        <p class="queryOutputLoaderSub">Generating SQL and running your query.</p>
+        <div class="skeletonTable" aria-hidden="true">
+          <div class="skeletonRow skeletonHeader">
+            <span class="skeletonLine skeletonLineShort"></span>
+            <span class="skeletonLine skeletonLineMed"></span>
+            <span class="skeletonLine skeletonLineLong"></span>
+          </div>
+          <div class="skeletonRow" *ngFor="let row of queryLoaderSkeletonRows; trackBy: trackByIndex">
+            <span class="skeletonLine skeletonLineLong"></span>
+            <span class="skeletonLine skeletonLineMed"></span>
+            <span class="skeletonLine skeletonLineShort"></span>
+          </div>
+        </div>
+      </div>
+
+      <ng-container *ngIf="!loading">
       <div class="error" *ngIf="error">
         <div class="errorTitle">Error</div>
         <pre>{{ error | json }}</pre>
@@ -138,6 +158,10 @@
           <div class="section" *ngIf="response?.assumptions?.length">
             <div class="sectionTitle">Assumptions</div>
             <div class="historyItem" *ngFor="let item of response?.assumptions">{{ item }}</div>
+          </div>
+
+          <div class="rowLimitNotice" *ngIf="response?.row_limit_notice" role="status">
+            {{ response.row_limit_notice }}
           </div>
 
           <div class="results" *ngIf="response?.data?.length">
@@ -182,6 +206,7 @@
           </div>
         </div>
       </div>
+      </ng-container>
 
       <div class="section debugBlock" *ngIf="debug && response?.debug">
         <div class="sectionTitle">Show work</div>

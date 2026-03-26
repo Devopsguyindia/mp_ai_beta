@@ -57,6 +57,8 @@ export interface ChatResponse {
   answer: string;
   data?: Array<Record<string, any>> | null;
   debug?: DebugInfo | null;
+  /** Present when the server capped rows at MYSQL_MAX_ROWS (default 200). */
+  row_limit_notice?: string | null;
   insights?: Array<{ title: string; detail: string }> | null;
   follow_up_prompts?: string[] | null;
   chart_spec?: {
