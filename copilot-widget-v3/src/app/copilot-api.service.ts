@@ -59,6 +59,12 @@ export interface ChatResponse {
   debug?: DebugInfo | null;
   /** Present when the server capped rows at MYSQL_MAX_ROWS (default 200). */
   row_limit_notice?: string | null;
+  /** Present when MySQL query succeeded for this request. */
+  db_status?: {
+    ok?: boolean;
+    detail?: string;
+    database?: string | null;
+  } | null;
   insights?: Array<{ title: string; detail: string }> | null;
   follow_up_prompts?: string[] | null;
   chart_spec?: {

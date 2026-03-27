@@ -20,7 +20,7 @@ from .nl2sql_engine import generate_query
 from .v3.rag.schema_index import build_schema_from_registry
 from .sql_guardrails import GuardrailResult, validate_select_sql
 from .sql_runner import QueryResult, run_select_query
-from .v3.models import V3AskRequest, V3AskResponse
+from .v3.models import DbConnectionStatus, V3AskRequest, V3AskResponse
 from .v3.orchestrator import run_v3_ask
 from .report_suggestions import router as report_suggestions_router
 
@@ -114,6 +114,7 @@ class ChatResponse(BaseModel):
     data: list[dict[str, Any]] | None = None
     debug: DebugInfo | None = None
     row_limit_notice: str | None = None
+    db_status: DbConnectionStatus | None = None
 
 
 def _decode_jwt_payload_unverified(token: str) -> dict[str, Any]:
@@ -591,7 +592,17 @@ def chat(req: ChatRequest) -> ChatResponse:
             f"Only the first {max_rows} rows are shown (Copilot default row limit). "
             "More rows matched your question but were not returned—narrow the date range or add filters."
         )
-    return ChatResponse(answer=answer, data=result.rows, debug=debug, row_limit_notice=row_limit_notice)
+    return ChatResponse(
+        answer=answer,
+        data=result.rows,
+        debug=debug,
+        row_limit_notice=row_limit_notice,
+        db_status=DbConnectionStatus(
+            ok=True,
+            detail="MySQL connection succeeded; read-only query completed.",
+            database=os.getenv("MYSQL_DATABASE"),
+        ),
+    )
 
 
 @app.post("/v3/ask", response_model=V3AskResponse)

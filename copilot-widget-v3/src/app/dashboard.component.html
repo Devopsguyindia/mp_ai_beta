@@ -143,6 +143,13 @@
             <div class="answerTitle">Answer</div>
             <div>{{ response.answer }}</div>
           </div>
+          <div class="dbStatusBanner" *ngIf="response?.db_status?.ok" role="status">
+            <span class="dbStatusTitle">Database</span>
+            <span class="dbStatusText">{{ response?.db_status?.detail }}</span>
+            <span class="dbStatusDb" *ngIf="response?.db_status?.database"
+              >({{ response?.db_status?.database }})</span
+            >
+          </div>
           <div class="answer" *ngIf="response?.confidence != null">
             <div class="answerTitle">Confidence</div>
             <div>{{ ((response.confidence != null ? response.confidence : 0) * 100) | number:'1.0-0' }}%</div>

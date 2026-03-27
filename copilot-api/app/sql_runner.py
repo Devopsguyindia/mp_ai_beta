@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any
 
 import mysql.connector
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -16,15 +19,31 @@ class QueryResult:
 
 
 def _connect():
-    return mysql.connector.connect(
-        host=os.getenv("MYSQL_HOST", "127.0.0.1"),
-        port=int(os.getenv("MYSQL_PORT", "3306")),
-        database=os.getenv("MYSQL_DATABASE"),
-        user=os.getenv("MYSQL_USERNAME"),
-        password=os.getenv("MYSQL_PASSWORD"),
-        autocommit=True,
-        connection_timeout=5,
+    try:
+        conn = mysql.connector.connect(
+            host=os.getenv("MYSQL_HOST", "127.0.0.1"),
+            port=int(os.getenv("MYSQL_PORT", "3306")),
+            database=os.getenv("MYSQL_DATABASE"),
+            user=os.getenv("MYSQL_USERNAME"),
+            password=os.getenv("MYSQL_PASSWORD"),
+            autocommit=True,
+            connection_timeout=5,
+        )
+    except mysql.connector.Error as e:
+        logger.error(
+            "MySQL connection failed host=%s database=%s: %s",
+            os.getenv("MYSQL_HOST"),
+            os.getenv("MYSQL_DATABASE"),
+            e,
+        )
+        raise
+    logger.info(
+        "MySQL connection established host=%s port=%s database=%s",
+        os.getenv("MYSQL_HOST"),
+        os.getenv("MYSQL_PORT", "3306"),
+        os.getenv("MYSQL_DATABASE"),
     )
+    return conn
 
 
 def run_select_query(*, sql: str, params: dict[str, Any], max_rows: int, timeout_ms: int) -> QueryResult:
@@ -58,6 +77,11 @@ def run_select_query(*, sql: str, params: dict[str, Any], max_rows: int, timeout
             truncated = len(remainder) > 0
 
             columns = list(rows[0].keys()) if rows else []
+            logger.info(
+                "MySQL query finished rows_returned=%d truncated=%s",
+                len(rows),
+                truncated,
+            )
             return QueryResult(columns=columns, rows=rows, truncated=truncated)
         finally:
             cur.close()

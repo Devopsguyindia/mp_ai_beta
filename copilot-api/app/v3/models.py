@@ -99,6 +99,17 @@ class V3DebugInfo(BaseModel):
     trace: AgentTrace | None = None
 
 
+class DbConnectionStatus(BaseModel):
+    """Present when a MySQL query completed successfully for this request (implies connectivity OK)."""
+
+    ok: bool = True
+    detail: str = "MySQL connection succeeded; read-only query completed."
+    database: str | None = Field(
+        default=None,
+        description="MYSQL_DATABASE name (informational only; no credentials).",
+    )
+
+
 class V3AskResponse(BaseModel):
     answer: str
     data: list[dict[str, Any]] = []
@@ -111,4 +122,5 @@ class V3AskResponse(BaseModel):
         default=None,
         description="When MYSQL_MAX_ROWS caps returned rows; UI should warn so trends are not misread.",
     )
+    db_status: DbConnectionStatus | None = None
     debug: V3DebugInfo | None = None

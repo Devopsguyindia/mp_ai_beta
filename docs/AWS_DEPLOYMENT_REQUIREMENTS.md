@@ -152,6 +152,14 @@ Configure `CORS_ALLOW_ORIGINS` with the production frontend URL(s), e.g.:
 CORS_ALLOW_ORIGINS=https://copilot.example.com,https://www.example.com
 ```
 
+The app also merges `https://doy5f9mehzv49.cloudfront.net` in `app/main.py` so EC2 does not need a separate CORS line for that origin.
+
+### 5.5 HTTPS required when the SPA uses HTTPS (mixed content)
+
+If the Angular app is loaded from **HTTPS** (e.g. CloudFront), the browser **blocks** calls to **`http://` API URLs** (e.g. `http://54.177.67.222:8001`). This is **not** a CORS misconfiguration: the request is blocked before it reaches the server (DevTools may show “Provisional headers” and no response headers).
+
+**Fix:** Terminate **TLS** for the API and set `copilotApiBaseUrl` in `environment.prod.ts` to **`https://...`** (for example: **Nginx + Let’s Encrypt** on EC2 with a DNS name pointing to the instance, or an **ALB** with an **ACM** certificate).
+
 ---
 
 ## 6. Suggested AWS Architecture

@@ -20,7 +20,15 @@ from .agents.schema_agent import retrieve_schema_context
 from .agents.sql_agent import generate_sql
 from .agents.validator_agent import validate_with_retry
 from .memory.log_store import append_memory_event
-from .models import AgentTrace, SQLGenerationOutput, V3AskRequest, V3AskResponse, V3DebugInfo, ValidationOutput
+from .models import (
+    AgentTrace,
+    DbConnectionStatus,
+    SQLGenerationOutput,
+    V3AskRequest,
+    V3AskResponse,
+    V3DebugInfo,
+    ValidationOutput,
+)
 from .rollout import evaluate_rollout_gates
 from .sql_schema_check import apply_registry_column_synonyms, validate_sql_columns_against_registry
 
@@ -256,6 +264,11 @@ def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
     assumptions.extend(rollout.warnings)
     answer = "Here are the results from Masterpiece data."
     data = result.rows if result.rows else [{"message": "I am sorry, no data matched to your question."}]
+    db_status = DbConnectionStatus(
+        ok=True,
+        detail="MySQL connection succeeded; read-only query completed.",
+        database=os.getenv("MYSQL_DATABASE"),
+    )
     return V3AskResponse(
         answer=answer,
         data=data,
@@ -265,5 +278,6 @@ def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
         confidence=planner.confidence,
         assumptions=assumptions,
         row_limit_notice=row_limit_notice,
+        db_status=db_status,
         debug=debug,
     )
