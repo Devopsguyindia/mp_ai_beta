@@ -44,6 +44,12 @@ for local_origin in (
     if local_origin not in cors_allow_origins:
         cors_allow_origins.append(local_origin)
 
+# Production SPA (S3 + CloudFront): merged in code so git pull on EC2 does not require a
+# separate server-only CORS_ALLOW_ORIGINS line. Override list still applies first via env above.
+_CLOUDFRONT_SPA_ORIGIN = "https://doy5f9mehzv49.cloudfront.net"
+if _CLOUDFRONT_SPA_ORIGIN not in cors_allow_origins:
+    cors_allow_origins.append(_CLOUDFRONT_SPA_ORIGIN)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_allow_origins,

@@ -12,7 +12,12 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forRoot(routes)],
-  exports: [RouterModule]
+  imports: [
+    RouterModule.forRoot(routes, {
+      // Hash URLs (e.g. /#/login) so S3/CloudFront refresh always serves index.html.
+      useHash: true,
+    }),
+  ],
+  exports: [RouterModule],
 })
 export class AppRoutingModule { }
