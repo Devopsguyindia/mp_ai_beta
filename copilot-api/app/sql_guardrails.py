@@ -37,6 +37,34 @@ def _prepare_sql_for_parsing(sql: str) -> str:
     return re.sub(r"%\([a-zA-Z_][a-zA-Z0-9_]*\)s", "1", sql)
 
 
+def restore_idcompany_placeholder_after_sqlglot(original_sql: str, transformed_sql: str) -> str:
+    """
+    After sqlglot parse/emit, driver placeholders were stubbed as literal 1 for parsing.
+    If the original used %(idcompany)s, put it back so MySQL executes the tenant bind, not company 1.
+    """
+    if not re.search(r"%\(\s*idcompany\s*\)s", original_sql, re.I):
+        return transformed_sql
+    out = transformed_sql
+    # Prefer quoted identifier if sqlglot emitted it.
+    if re.search(r"(?<![\w])`idcompany`\s*=\s*1\b", out, re.I):
+        out = re.sub(
+            r"(?<![\w])`idcompany`\s*=\s*1\b",
+            "`idcompany` = %(idcompany)s",
+            out,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+    elif re.search(r"(?<![\w])idcompany\s*=\s*1\b", out, re.I):
+        out = re.sub(
+            r"(?<![\w])idcompany\s*=\s*1\b",
+            "idcompany = %(idcompany)s",
+            out,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+    return out
+
+
 def validate_select_sql(*, sql: str, required_idcompany_param: str = "idcompany") -> GuardrailResult:
     violations: list[GuardrailViolation] = []
     raw = sql.strip().rstrip(";")
@@ -99,6 +127,7 @@ def validate_select_sql(*, sql: str, required_idcompany_param: str = "idcompany"
     normalized_sql = None
     try:
         normalized_sql = expr.sql(dialect="mysql")
+        normalized_sql = restore_idcompany_placeholder_after_sqlglot(raw, normalized_sql)
     except Exception:
         normalized_sql = raw
 

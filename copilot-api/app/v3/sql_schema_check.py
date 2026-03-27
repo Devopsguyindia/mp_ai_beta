@@ -5,6 +5,8 @@ import re
 import sqlglot
 from sqlglot import exp
 
+from ..sql_guardrails import restore_idcompany_placeholder_after_sqlglot
+
 from .rag.schema_index import load_schema_registry
 
 # LLM-invented or ERP-mismatched names -> exact column names in the DB view (must match registry).
@@ -258,6 +260,7 @@ def apply_registry_column_synonyms(sql: str) -> str:
         col.set("this", exp.Identifier(this=replace_as, quoted=False))
 
     try:
-        return parsed.sql(dialect="mysql")
+        out = parsed.sql(dialect="mysql")
     except Exception:
         return sql
+    return restore_idcompany_placeholder_after_sqlglot(sql, out)
