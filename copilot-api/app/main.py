@@ -31,7 +31,7 @@ app = FastAPI(title="Copilot API (V1, read-only)", version="0.1.0")
 
 cors_origins_raw = os.getenv(
     "CORS_ALLOW_ORIGINS",
-    "http://localhost:4200,http://127.0.0.1:4200,http://localhost:4300,http://127.0.0.1:4300",
+    "http://localhost:4200,http://127.0.0.1:4200,http://localhost:4300,http://127.0.0.1:4300,https://doy5f9mehzv49.cloudfront.net",
 )
 cors_allow_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
 # Keep local dev origins for both V2 (4200) and V3 (4300) even if env omits them.
