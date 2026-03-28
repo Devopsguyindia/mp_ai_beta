@@ -29,10 +29,6 @@ load_dotenv()
 
 app = FastAPI(title="Copilot API (V1, read-only)", version="0.1.0")
 
-cors_origins_raw = os.getenv(
-    "CORS_ALLOW_ORIGINS",
-    "http://localhost:4200,http://127.0.0.1:4200,http://localhost:4300,http://127.0.0.1:4300,http://127.0.0.1,http://localhost",
-)
 def _normalize_origin(o: str) -> str:
     o = o.strip()
     if len(o) > 1 and o.endswith("/"):
@@ -40,41 +36,27 @@ def _normalize_origin(o: str) -> str:
     return o
 
 
-cors_allow_origins = [_normalize_origin(o) for o in cors_origins_raw.split(",") if o.strip()]
-# Keep local dev origins for both V2 (4200) and V3 (4300) even if env omits them.
-for local_origin in (
+# Local dev only: explicit origins (no CloudFront / mpstest merges). Override via CORS_ALLOW_ORIGINS on server.
+_LOCAL_DEV_ORIGINS = (
     "http://localhost:4200",
     "http://127.0.0.1:4200",
     "http://localhost:4300",
     "http://127.0.0.1:4300",
     "http://127.0.0.1",
     "http://localhost",
-):
+)
+cors_origins_raw = os.getenv(
+    "CORS_ALLOW_ORIGINS",
+    ",".join(_LOCAL_DEV_ORIGINS),
+)
+cors_allow_origins = [_normalize_origin(o) for o in cors_origins_raw.split(",") if o.strip()]
+for local_origin in _LOCAL_DEV_ORIGINS:
     if local_origin not in cors_allow_origins:
         cors_allow_origins.append(local_origin)
-
-# Production SPA (S3 + CloudFront): merged in code so git pull on EC2 does not require a
-# separate server-only CORS_ALLOW_ORIGINS line. Override list still applies first via env above.
-#_CLOUDFRONT_SPA_ORIGIN = "https://doy5f9mehzv49.cloudfront.net"
-#if _CLOUDFRONT_SPA_ORIGIN not in cors_allow_origins:
-#    cors_allow_origins.append(_CLOUDFRONT_SPA_ORIGIN)
-
-# Browsers send Origin on cross-origin XHR. Match:
-# - localhost / 127.0.0.1 (any port)
-# - any host under https://*.mpstest.net (including apex https://mpstest.net)
-# - any https://*.cloudfront.net (S3/CloudFront SPA distributions vary by ID)
-# Override entirely with CORS_ALLOW_ORIGIN_REGEX if you need a custom pattern on the server.
-_DEFAULT_CORS_ORIGIN_REGEX = (
-    r"(^https?://(localhost|127\.0\.0\.1)(:\d+)?$)|"
-    r"(^https://(?:[^/]+\.)?mpstest\.net(?::\d+)?$)|"
-    r"(^https://[^/]+\.cloudfront\.net(?::\d+)?$)"
-)
-_cors_origin_regex = os.getenv("CORS_ALLOW_ORIGIN_REGEX", _DEFAULT_CORS_ORIGIN_REGEX).strip() or _DEFAULT_CORS_ORIGIN_REGEX
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_allow_origins,
-    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
