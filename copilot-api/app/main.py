@@ -31,7 +31,7 @@ app = FastAPI(title="Copilot API (V1, read-only)", version="0.1.0")
 
 cors_origins_raw = os.getenv(
     "CORS_ALLOW_ORIGINS",
-    "http://localhost:4200,http://127.0.0.1:4200,http://localhost:4300,http://127.0.0.1:4300,https://doy5f9mehzv49.cloudfront.net",
+    "http://localhost:4200,http://127.0.0.1:4200,http://localhost:4300,http://127.0.0.1:4300,http://127.0.0.1,http://localhost",
 )
 def _normalize_origin(o: str) -> str:
     o = o.strip()
@@ -47,15 +47,17 @@ for local_origin in (
     "http://127.0.0.1:4200",
     "http://localhost:4300",
     "http://127.0.0.1:4300",
+    "http://127.0.0.1",
+    "http://localhost",
 ):
     if local_origin not in cors_allow_origins:
         cors_allow_origins.append(local_origin)
 
 # Production SPA (S3 + CloudFront): merged in code so git pull on EC2 does not require a
 # separate server-only CORS_ALLOW_ORIGINS line. Override list still applies first via env above.
-_CLOUDFRONT_SPA_ORIGIN = "https://doy5f9mehzv49.cloudfront.net"
-if _CLOUDFRONT_SPA_ORIGIN not in cors_allow_origins:
-    cors_allow_origins.append(_CLOUDFRONT_SPA_ORIGIN)
+#_CLOUDFRONT_SPA_ORIGIN = "https://doy5f9mehzv49.cloudfront.net"
+#if _CLOUDFRONT_SPA_ORIGIN not in cors_allow_origins:
+#    cors_allow_origins.append(_CLOUDFRONT_SPA_ORIGIN)
 
 # Browsers send Origin on cross-origin XHR. Match:
 # - localhost / 127.0.0.1 (any port)
