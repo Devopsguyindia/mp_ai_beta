@@ -3,7 +3,7 @@
 // After TLS on the API (Nginx + Let's Encrypt or ALB + ACM), set this to that https URL.
 export const environment = {
   production: true,
-  copilotApiBaseUrl: 'https://copilot-api.mpstest.net:8001',
+  copilotApiBaseUrl: 'https://copilot-api.mpstest.net',
   v3AskEnabled: true,
   reportSuggestionsEnabled: true
 };

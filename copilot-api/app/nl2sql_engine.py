@@ -141,6 +141,31 @@ def _extract_window_expr(q: str) -> tuple[str, str]:
     return "DATE_SUB(NOW(), INTERVAL 30 DAY)", "last_30_days_default"
 
 
+def _edition_name_from_question(q: str) -> str | None:
+    """
+    Map natural-language edition wording to company_sale_data.EditionName (see schema / ERP labels).
+    """
+    if re.search(r"\bnon[- ]?stock\b", q):
+        return "Non Stock"
+    if "limited" in q and "edition" in q:
+        return "Limited"
+    if "open" in q and "edition" in q:
+        return "Open"
+    if "unique" in q and "edition" in q:
+        return "Unique"
+    return None
+
+
+_ALLOWED_EDITION_NAMES = frozenset({"Unique", "Open", "Limited", "Non Stock"})
+
+
+def _sql_literal_edition_name(name: str) -> str:
+    """Safe single-quoted literal for EditionName IN (only allowlisted values)."""
+    if name not in _ALLOWED_EDITION_NAMES:
+        return "'Unique'"
+    return "'" + name.replace("'", "''") + "'"
+
+
 def _score(q: str, words: list[str]) -> int:
     return sum(1 for w in words if w in q)
 
@@ -169,6 +194,13 @@ def _detect_intent(q: str, copilot: Literal["sales", "inventory", "customer", "a
             "vendor_spend_trend": _score(q, ["vendor", "spend", "trend", "month", "monthly"]),
         }
         return max(vendor_candidates, key=lambda k: vendor_candidates[k])
+
+    # Strong signal: artist ranking + edition type + sales (deterministic fallback when LLM unavailable).
+    en = _edition_name_from_question(q)
+    if en and ("artist" in q or "artists" in q) and any(
+        t in q for t in ("sale", "sales", "revenue", "sold", "selling", "most", "top", "best", "many")
+    ):
+        return "top_artists_by_edition_sales"
 
     candidates = {
         "recent_sold_items": _score(q, ["sold", "item", "recent", "latest", "last"]),
@@ -201,6 +233,10 @@ def generate_query(
     limit, requested_limit = _extract_limit(q)
     window_expr, window_label = _extract_window_expr(q)
     intent = _detect_intent(q, copilot=copilot)
+    if intent == "top_artists_by_edition_sales" and window_label == "last_30_days_default":
+        # "Most …" / no explicit window: rank all-time line-level sales, not last 30 days.
+        window_expr = "DATE('1970-01-01')"
+        window_label = "all_time_default"
 
     if intent == "customer_top_by_ltv":
         return QuerySpec(
@@ -498,23 +534,53 @@ def generate_query(
             window_label=window_label,
         )
 
-    if intent == "top_artists_by_total_sales":
+    if intent == "top_artists_by_edition_sales":
+        en = _edition_name_from_question(q) or "Unique"
+        en_lit = _sql_literal_edition_name(en)
         an_col = _artist_name_col("company_sale_data")
         lt_col = _line_total_col("company_sale_data")
         sr_col = _sale_returned_col("company_sale_data")
+        artist_display = f"COALESCE(NULLIF(TRIM(d.{an_col}), ''), 'Anonymous')"
         return QuerySpec(
             intent=intent,
             sql=f"""
             SELECT
-              d.idcompany_artist,
-              d.{an_col},
+              {artist_display} AS ArtistName,
+              COUNT(*) AS edition_sales_count,
+              ROUND(SUM(d.{lt_col}), 2) AS edition_revenue_net
+            FROM company_sale_data d
+            WHERE d.idcompany = %(idcompany)s
+              AND d.is_sale = 1
+              AND COALESCE(d.{sr_col}, 0) = 0
+              AND d.EditionName = {en_lit}
+              AND d.sale_date >= {window_expr}
+            GROUP BY {artist_display}
+            ORDER BY edition_sales_count DESC, edition_revenue_net DESC
+            LIMIT {limit}
+            """.strip(),
+            params={},
+            requested_limit=requested_limit,
+            applied_limit=limit,
+            window_label=window_label,
+        )
+
+    if intent == "top_artists_by_total_sales":
+        an_col = _artist_name_col("company_sale_data")
+        lt_col = _line_total_col("company_sale_data")
+        sr_col = _sale_returned_col("company_sale_data")
+        artist_display = f"COALESCE(NULLIF(TRIM(d.{an_col}), ''), 'Anonymous')"
+        return QuerySpec(
+            intent=intent,
+            sql=f"""
+            SELECT
+              {artist_display} AS ArtistName,
               ROUND(SUM(d.{lt_col}), 2) AS total_sales_net
             FROM company_sale_data d
             WHERE d.idcompany = %(idcompany)s
               AND d.is_sale = 1
               AND COALESCE(d.{sr_col}, 0) = 0
               AND d.sale_date >= {window_expr}
-            GROUP BY d.idcompany_artist, d.{an_col}
+            GROUP BY {artist_display}
             ORDER BY total_sales_net DESC
             LIMIT {limit}
             """.strip(),

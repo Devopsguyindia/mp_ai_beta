@@ -70,6 +70,11 @@
         },
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
+          "options": {
+            "browserTarget": "copilot-widget:build:development",
+            "port": 4300,
+            "host": "0.0.0.0"
+          },
           "configurations": {
             "production": {
               "browserTarget": "copilot-widget:build:production"
