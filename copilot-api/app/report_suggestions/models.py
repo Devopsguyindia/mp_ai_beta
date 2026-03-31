@@ -70,6 +70,10 @@ class ReportRerunRequest(BaseModel):
 
     access_token: str = Field(..., min_length=8)
     filter_data: str = Field(..., min_length=2, description="Original filter_data JSON string from report_usage")
+    roll_end_dates: bool = Field(
+        default=True,
+        description="If true, set *ToDate / end-date keys to today (MM/DD/YYYY). Use false to re-run with stored dates (e.g. Recent runs).",
+    )
 
 
 class ReportSuggestionsResponse(BaseModel):

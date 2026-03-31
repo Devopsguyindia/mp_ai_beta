@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
+import { finalize } from 'rxjs/operators';
 import { AuthService, SessionInfo } from './auth.service';
 import {
   ChatResponse,
@@ -23,11 +24,14 @@ export class DashboardComponent implements OnInit {
   session: SessionInfo | null = null;
   question = '';
   debug = true;
-  displayChart = false;
+  displayChart = true;
 
   loading = false;
   error: any = null;
   response: ChatResponse | null = null;
+  /** null = no result yet; true = MySQL OK; false = connection / DB error */
+  erpConnectionOk: boolean | null = null;
+  erpConnectionError: string | null = null;
   history: string[] = [];
   readonly useV3Ask = !!(environment as any).v3AskEnabled;
   readonly reportSuggestionsFeatureEnabled =
@@ -172,43 +176,56 @@ export class DashboardComponent implements OnInit {
     );
   }
 
-  rerunReport(filterData: string | null | undefined, filterHash: string): void {
-    const fd = filterData?.trim();
+  /**
+   * @param rollEndDates Smart defaults only: set end-date fields to today (MM/DD/YYYY), keep start dates.
+   */
+  rerunReport(
+    filterData: string | null | undefined,
+    filterHash: string,
+    rollEndDates = false
+  ): void {
+    let fd = filterData?.trim();
     if (!fd || !this.session?.access_token) {
       return;
     }
     this.rerunBusyHash = filterHash;
-    this.api.rerunReport({ access_token: this.session.access_token, filter_data: fd }).subscribe({
-      next: (resp) => {
-        const blob = resp.body;
-        this.rerunBusyHash = null;
-        if (!blob || blob.size === 0) {
-          this.reportSuggestionsError = 'Re-run returned an empty response.';
-          return;
+    this.api
+      .rerunReport({
+        access_token: this.session.access_token,
+        filter_data: fd,
+        roll_end_dates: rollEndDates
+      })
+      .subscribe({
+        next: (resp) => {
+          const blob = resp.body;
+          this.rerunBusyHash = null;
+          if (!blob || blob.size === 0) {
+            this.reportSuggestionsError = 'Re-run returned an empty response.';
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          window.open(url, '_blank', 'noopener,noreferrer');
+          setTimeout(() => URL.revokeObjectURL(url), 120000);
+        },
+        error: (err: HttpErrorResponse) => {
+          this.rerunBusyHash = null;
+          const body = err.error;
+          if (body instanceof Blob) {
+            body.text().then((t) => {
+              try {
+                const j = JSON.parse(t) as { detail?: { message?: string } | string };
+                const d = j.detail;
+                this.reportSuggestionsError =
+                  typeof d === 'string' ? d : d?.message || t.slice(0, 600) || err.message;
+              } catch {
+                this.reportSuggestionsError = t.slice(0, 600) || err.message;
+              }
+            });
+          } else {
+            this.reportSuggestionsError = err.message || 'Re-run failed.';
+          }
         }
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank', 'noopener,noreferrer');
-        setTimeout(() => URL.revokeObjectURL(url), 120000);
-      },
-      error: (err: HttpErrorResponse) => {
-        this.rerunBusyHash = null;
-        const body = err.error;
-        if (body instanceof Blob) {
-          body.text().then((t) => {
-            try {
-              const j = JSON.parse(t) as { detail?: { message?: string } | string };
-              const d = j.detail;
-              this.reportSuggestionsError =
-                typeof d === 'string' ? d : d?.message || t.slice(0, 600) || err.message;
-            } catch {
-              this.reportSuggestionsError = t.slice(0, 600) || err.message;
-            }
-          });
-        } else {
-          this.reportSuggestionsError = err.message || 'Re-run failed.';
-        }
-      }
-    });
+      });
   }
 
   private historyScopeStable(): string {
@@ -315,17 +332,102 @@ export class DashboardComponent implements OnInit {
       next: (res) => {
         this.response = res;
         this.loading = false;
+        this.applyErpConnectionFromResponse(res);
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
+        if (err instanceof HttpErrorResponse) {
+          this.applyErpConnectionFromHttpError(err);
+        }
       }
     });
   }
 
   logout(): void {
-    this.auth.logout();
-    this.router.navigate(['/login']);
+    const s = this.session;
+    if (s?.auth_session_id) {
+      this.api
+        .authLogout({
+          auth_session_id: s.auth_session_id,
+          idcompany: s.idcompany ?? undefined,
+          userid: s.userid ?? undefined,
+          username: s.username ?? undefined
+        })
+        .pipe(
+          finalize(() => {
+            this.auth.logout();
+            this.router.navigate(['/login']);
+          })
+        )
+        .subscribe({ error: () => undefined });
+    } else {
+      this.auth.logout();
+      this.router.navigate(['/login']);
+    }
+  }
+
+  get erpConnectionAriaLabel(): string {
+    if (this.erpConnectionOk === true) {
+      return 'Masterpiece ERP database connection OK';
+    }
+    if (this.erpConnectionOk === false) {
+      return 'Masterpiece ERP database connection failed';
+    }
+    return 'Masterpiece ERP connection status pending';
+  }
+
+  private applyErpConnectionFromResponse(res: ChatResponse): void {
+    if (res.db_status && res.db_status.ok === false) {
+      this.erpConnectionOk = false;
+      this.erpConnectionError = res.db_status.detail || 'Connection failed';
+      return;
+    }
+    if (res.db_status) {
+      this.erpConnectionOk = true;
+      this.erpConnectionError = null;
+      return;
+    }
+    this.erpConnectionOk = true;
+    this.erpConnectionError = null;
+  }
+
+  private applyErpConnectionFromHttpError(err: HttpErrorResponse): void {
+    const msg = this.flattenHttpError(err);
+    if (this.looksLikeDbConnectionFailure(msg)) {
+      this.erpConnectionOk = false;
+      this.erpConnectionError = msg;
+    }
+  }
+
+  private flattenHttpError(err: HttpErrorResponse): string {
+    const e = err.error;
+    if (e && typeof e === 'object') {
+      const d = (e as { detail?: unknown }).detail;
+      if (typeof d === 'object' && d !== null && 'message' in (d as object)) {
+        return String((d as { message: unknown }).message);
+      }
+      if (typeof d === 'string') {
+        return d;
+      }
+    }
+    return err.message || 'Request failed';
+  }
+
+  private looksLikeDbConnectionFailure(msg: string): boolean {
+    const m = msg.toLowerCase();
+    return (
+      m.includes('mysql') ||
+      m.includes('mysqlconnector') ||
+      m.includes('1045') ||
+      m.includes('1049') ||
+      m.includes('2002') ||
+      m.includes('2003') ||
+      m.includes('lost connection') ||
+      (m.includes("can't connect") || m.includes('cannot connect')) ||
+      (m.includes('connection') && (m.includes('refused') || m.includes('timed out'))) ||
+      (m.includes('access denied') && m.includes('mysql'))
+    );
   }
 
   get rowsCardValue(): number {

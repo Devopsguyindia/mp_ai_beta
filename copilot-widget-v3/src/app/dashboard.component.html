@@ -39,6 +39,37 @@
 
     <section class="topPanels">
       <section class="panel mainPanel">
+        <div class="erpConnectionRow">
+          <div class="erpConnectionTitle">Masterpiece ERP Connection</div>
+          <div
+            class="erpConnectionLights"
+            role="status"
+            [attr.aria-label]="erpConnectionAriaLabel"
+          >
+            <span
+              class="erpLight erpLightGreen"
+              [class.erpLightActive]="erpConnectionOk === true"
+              [class.erpLightInactive]="erpConnectionOk !== true"
+              aria-hidden="true"
+              >🟢</span
+            >
+            <span
+              class="erpLight erpLightRed"
+              [class.erpLightActive]="erpConnectionOk === false"
+              [class.erpLightInactive]="erpConnectionOk !== false"
+              aria-hidden="true"
+              >🔴</span
+            >
+          </div>
+          <div
+            class="erpConnectionError"
+            *ngIf="erpConnectionOk === false && erpConnectionError"
+            role="alert"
+          >
+            {{ erpConnectionError }}
+          </div>
+        </div>
+
         <div class="controls">
           <label class="checkbox">
             <input type="checkbox" [(ngModel)]="debug" />
@@ -142,13 +173,6 @@
           <div class="answer" *ngIf="response">
             <div class="answerTitle">Answer</div>
             <div>{{ response.answer }}</div>
-          </div>
-          <div class="dbStatusBanner" *ngIf="response?.db_status?.ok" role="status">
-            <span class="dbStatusTitle">Database</span>
-            <span class="dbStatusText">{{ response?.db_status?.detail }}</span>
-            <span class="dbStatusDb" *ngIf="response?.db_status?.database"
-              >({{ response?.db_status?.database }})</span
-            >
           </div>
           <div class="answer" *ngIf="response?.confidence != null">
             <div class="answerTitle">Confidence</div>
@@ -299,10 +323,10 @@
             <h3 class="reportInsightsColTitle">Top reports</h3>
             <p class="reportInsightsColHint">By total runs (usage count)</p>
             <ul class="reportInsightsList">
-              <li *ngFor="let t of (reportSuggestions.top_reports || [])" class="reportInsightsRow">
-                <span class="reportInsightsRank">{{ t.report_id }}</span>
+              <li *ngFor="let t of (reportSuggestions.top_reports || []); let ti = index" class="reportInsightsRow">
+                <span class="reportInsightsRank">{{ ti + 1 }}</span>
                 <span class="reportInsightsMain">
-                  <span class="reportInsightsName">{{ t.report_name || 'Report ' + t.report_id }}</span>
+                  <span class="reportInsightsName">{{ t.report_name || 'Report' }}</span>
                   <span class="reportInsightsMeta" *ngIf="t.name_source">{{ t.name_source }}</span>
                 </span>
                 <span class="reportInsightsStat">{{ t.total_usage }}×</span>
@@ -316,7 +340,7 @@
             <ul class="reportInsightsList">
               <li *ngFor="let r of (reportSuggestions.recent_runs || [])" class="reportInsightsRow reportInsightsRowStack">
                 <div class="reportInsightsRowTop">
-                  <span class="reportInsightsName">{{ r.report_name || 'Report ' + r.report_id }}</span>
+                  <span class="reportInsightsName">{{ r.report_name || 'Report' }}</span>
                   <span class="reportInsightsStat">{{ r.usage_count }}×</span>
                 </div>
                 <div class="reportInsightsRowSub" *ngIf="r.last_used">Last run: {{ r.last_used }}</div>
@@ -345,7 +369,7 @@
             <ul class="reportInsightsList">
               <li *ngFor="let s of (reportSuggestions.smart_defaults || [])" class="reportInsightsRow reportInsightsRowStack">
                 <div class="reportInsightsRowTop">
-                  <span class="reportInsightsName">{{ s.report_name || 'Report ' + s.report_id }}</span>
+                  <span class="reportInsightsName">{{ s.report_name || 'Report' }}</span>
                   <span class="reportInsightsStat">{{ s.usage_sum }}×</span>
                 </div>
                 <div class="reportFilterList" *ngIf="(s.filter_data | reportFilterSummary).length">
@@ -358,7 +382,7 @@
                   type="button"
                   class="reportRerunBtn"
                   *ngIf="s.filter_data"
-                  (click)="rerunReport(s.filter_data, s.filter_hash)"
+                  (click)="rerunReport(s.filter_data, s.filter_hash, true)"
                   [disabled]="rerunBusyHash === s.filter_hash"
                 >
                   {{ rerunBusyHash === s.filter_hash ? 'Opening…' : 'Re-run in ERP' }}
@@ -376,7 +400,7 @@
                   <span class="reportInsightsName">{{ h.weekday_label }}</span>
                   <span class="reportInsightsStat">{{ h.run_count }}×</span>
                 </div>
-                <div class="reportInsightsRowSub">{{ h.report_name || ('Report ' + h.report_id) }}</div>
+                <div class="reportInsightsRowSub">{{ h.report_name || 'Most-used report' }}</div>
               </li>
             </ul>
             <p class="reportInsightsColHint" *ngIf="!reportSuggestions.predict_hints?.length">

@@ -126,6 +126,15 @@ export interface ReportPredictHintItem {
 export interface ReportRerunRequest {
   access_token: string;
   filter_data: string;
+  /** If true (default), server sets end-date fields to today. Set false for exact historical re-run (Recent). */
+  roll_end_dates?: boolean;
+}
+
+export interface AuthLogoutRequest {
+  auth_session_id: string;
+  idcompany?: number;
+  userid?: string | number;
+  username?: string;
 }
 
 export interface ReportSuggestionsResponse {
@@ -162,6 +171,14 @@ export class CopilotApiService {
     return this.http.post(`${this.baseUrl}/reports/rerun`, req, {
       responseType: 'blob',
       observe: 'response'
+    });
+  }
+
+  /** Records logout in server audit table (best-effort). */
+  authLogout(req: AuthLogoutRequest): Observable<HttpResponse<string>> {
+    return this.http.post(`${this.baseUrl}/auth/logout`, req, {
+      observe: 'response',
+      responseType: 'text'
     });
   }
 }

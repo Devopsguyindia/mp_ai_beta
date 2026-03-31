@@ -58,7 +58,11 @@ router = APIRouter(prefix="/reports", tags=["report_suggestions"])
 def post_report_rerun(req: ReportRerunRequest) -> Response:
     if os.getenv("REPORT_RERUN_ENABLED", "1") not in {"1", "true", "TRUE", "yes", "YES"}:
         raise HTTPException(status_code=404, detail={"error": "report_rerun_disabled"})
-    return proxy_generate_report_get(access_token=req.access_token.strip(), filter_data=req.filter_data)
+    return proxy_generate_report_get(
+        access_token=req.access_token.strip(),
+        filter_data=req.filter_data,
+        roll_end_dates=req.roll_end_dates,
+    )
 
 
 @router.post("/suggestions", response_model=ReportSuggestionsResponse)

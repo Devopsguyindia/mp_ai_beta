@@ -11,8 +11,9 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from .llm_nl2sql import generate_query_with_llm
@@ -23,6 +24,7 @@ from .sql_runner import QueryResult, run_select_query
 from .v3.models import DbConnectionStatus, V3AskRequest, V3AskResponse
 from .v3.orchestrator import run_v3_ask
 from .report_suggestions import router as report_suggestions_router
+from .auth_audit_store import append_auth_audit_event, client_ip_from_request_headers
 
 
 load_dotenv()
@@ -83,6 +85,13 @@ class LoginRequest(BaseModel):
     txt_company: str = Field(..., min_length=1, max_length=200)
     txt_username: str = Field(..., min_length=1, max_length=200)
     txt_password: str = Field(..., min_length=1, max_length=200)
+
+
+class LogoutRequest(BaseModel):
+    auth_session_id: str = Field(..., min_length=8, max_length=64)
+    idcompany: int | None = None
+    userid: str | int | None = None
+    username: str | None = None
 
 
 class DebugInfo(BaseModel):
@@ -337,7 +346,13 @@ def health() -> dict[str, str]:
 
 
 @app.post("/auth/login")
-def auth_login(req: LoginRequest) -> dict[str, Any]:
+def auth_login(req: LoginRequest, request: Request) -> dict[str, Any]:
+    client_ip = client_ip_from_request_headers(
+        request.headers.get("x-forwarded-for"),
+        request.client.host if request.client else None,
+    )
+    user_agent = (request.headers.get("user-agent") or "")[:512]
+
     url = "https://v12-api.masterpiecemanager.com/signIn"
     body = urlparse.urlencode(
         {
@@ -359,6 +374,15 @@ def auth_login(req: LoginRequest) -> dict[str, Any]:
             err_body = e.read().decode("utf-8")
         except Exception:
             pass
+        append_auth_audit_event(
+            event_type="login_failure",
+            client_ip=client_ip,
+            user_agent=user_agent,
+            txt_company=req.txt_company,
+            txt_username=req.txt_username,
+            failure_code="upstream_http",
+            failure_message=f"HTTP {e.code}",
+        )
         raise HTTPException(
             status_code=502,
             detail={
@@ -368,6 +392,15 @@ def auth_login(req: LoginRequest) -> dict[str, Any]:
             },
         )
     except Exception as e:
+        append_auth_audit_event(
+            event_type="login_failure",
+            client_ip=client_ip,
+            user_agent=user_agent,
+            txt_company=req.txt_company,
+            txt_username=req.txt_username,
+            failure_code="upstream_error",
+            failure_message=repr(e)[:512],
+        )
         raise HTTPException(
             status_code=502,
             detail={
@@ -379,9 +412,28 @@ def auth_login(req: LoginRequest) -> dict[str, Any]:
     try:
         payload = json.loads(raw)
     except Exception:
+        append_auth_audit_event(
+            event_type="login_failure",
+            client_ip=client_ip,
+            user_agent=user_agent,
+            txt_company=req.txt_company,
+            txt_username=req.txt_username,
+            failure_code="invalid_login_response",
+            failure_message="JSON parse failed",
+        )
         raise HTTPException(status_code=502, detail={"error": "invalid_login_response"})
 
     if not payload.get("status"):
+        fail_msg = str(payload.get("message", "Login failed"))[:512]
+        append_auth_audit_event(
+            event_type="login_failure",
+            client_ip=client_ip,
+            user_agent=user_agent,
+            txt_company=req.txt_company,
+            txt_username=req.txt_username,
+            failure_code="invalid_credentials",
+            failure_message=fail_msg,
+        )
         raise HTTPException(
             status_code=401,
             detail={
@@ -401,10 +453,13 @@ def auth_login(req: LoginRequest) -> dict[str, Any]:
     except Exception:
         idcompany = None
 
+    auth_session_id = str(uuid.uuid4())
+
     session = {
         "access_token": token,
         "token_payload": token_payload,
         "idcompany": idcompany,
+        "auth_session_id": auth_session_id,
         "company_name": token_payload.get("company_name"),
         "username": user_info.get("username") or token_payload.get("username"),
         "firstname": user_info.get("firstname") or token_payload.get("firstname"),
@@ -416,11 +471,61 @@ def auth_login(req: LoginRequest) -> dict[str, Any]:
         "location_name": user_info.get("location_name") or token_payload.get("location_name"),
     }
 
+    uid = session.get("userid")
+    uname = session.get("username")
+    rid = session.get("role_id")
+    meta: dict[str, Any] = {}
+    jti = token_payload.get("jti")
+    if jti is not None:
+        meta["jti"] = str(jti)[:128]
+    loc = session.get("location_name")
+    if loc:
+        meta["location_name"] = str(loc)[:200]
+
+    append_auth_audit_event(
+        event_type="login_success",
+        client_ip=client_ip,
+        user_agent=user_agent,
+        auth_session_id=auth_session_id,
+        idcompany=idcompany,
+        txt_company=req.txt_company,
+        userid=str(uid) if uid is not None else None,
+        username=str(uname) if uname is not None else None,
+        role_id=str(rid) if rid is not None else None,
+        meta_json=meta or None,
+    )
+
     return {
         "status": True,
         "message": payload.get("message", "Login Successful"),
         "session": session,
     }
+
+
+@app.post("/auth/logout", status_code=204, response_class=Response)
+def auth_logout(req: LogoutRequest, request: Request) -> Response:
+    client_ip = client_ip_from_request_headers(
+        request.headers.get("x-forwarded-for"),
+        request.client.host if request.client else None,
+    )
+    user_agent = (request.headers.get("user-agent") or "")[:512]
+    uid = req.userid
+    uid_s = str(uid).strip()[:64] if uid is not None else None
+    if uid_s == "":
+        uid_s = None
+    uname = str(req.username).strip()[:200] if req.username is not None else None
+    if uname == "":
+        uname = None
+    append_auth_audit_event(
+        event_type="logout",
+        client_ip=client_ip,
+        user_agent=user_agent,
+        auth_session_id=req.auth_session_id.strip(),
+        idcompany=req.idcompany,
+        userid=uid_s,
+        username=uname,
+    )
+    return Response(status_code=204)
 
 
 @app.post("/chat", response_model=ChatResponse)

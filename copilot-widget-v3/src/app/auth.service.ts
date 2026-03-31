@@ -7,6 +7,8 @@ export interface SessionInfo {
   access_token: string;
   token_payload: Record<string, any>;
   idcompany: number | null;
+  /** Server-issued UUID; used for auth audit logout correlation. */
+  auth_session_id?: string | null;
   company_name?: string | null;
   username?: string | null;
   firstname?: string | null;

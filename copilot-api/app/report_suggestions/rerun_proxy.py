@@ -9,7 +9,13 @@ import urllib.request
 from fastapi import HTTPException
 from fastapi.responses import Response
 
+from .report_filter_roll_dates import apply_rolling_end_dates_to_filter_data
+
 DEFAULT_GENERATE_BASE = "https://v12-api.masterpiecemanager.com/reports/generateReport"
+
+
+def _roll_end_dates_enabled() -> bool:
+    return os.getenv("REPORT_RERUN_ROLL_END_DATES", "1").lower() not in {"0", "false", "no", "off"}
 
 
 def _generate_base_url() -> str:
@@ -63,13 +69,19 @@ def _authorization_value(access_token: str) -> str:
     return token
 
 
-def proxy_generate_report_get(*, access_token: str, filter_data: str) -> Response:
+def proxy_generate_report_get(*, access_token: str, filter_data: str, roll_end_dates: bool = True) -> Response:
     """
     Server-side GET to MP generateReport (avoids browser CORS).
 
     Sends header: Authorization: <sign-in token> (raw by default; Bearer if MP_REPORT_AUTH_BEARER=1).
+
+    When roll_end_dates is True and REPORT_RERUN_ROLL_END_DATES is enabled, end-date keys in filter_data
+    are set to today (MM/DD/YYYY), matching the widget Smart-defaults behavior for direct API callers.
     """
-    url = build_report_generate_url(filter_data)
+    fd = filter_data
+    if roll_end_dates and _roll_end_dates_enabled():
+        fd = apply_rolling_end_dates_to_filter_data(filter_data)
+    url = build_report_generate_url(fd)
     timeout = int(os.getenv("MP_REPORT_GENERATE_TIMEOUT_SEC", "120"))
     req = urllib.request.Request(
         url,

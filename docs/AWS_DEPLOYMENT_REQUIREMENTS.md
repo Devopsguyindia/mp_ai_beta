@@ -110,6 +110,8 @@ Outbound HTTPS access to these endpoints is required from the backend.
 
 **Report usage insights:** The read-only MySQL user must be able to `SELECT` from report analytics tables used by the suggestions service (see `schema_registry.json` / `metric_definitions.md` for table names). The report re-run proxy calls the ERP/Masterpiece API using the same sign-in token the client sends; ensure outbound HTTPS to `MP_REPORT_GENERATE_URL` is allowed from the backend.
 
+The Angular dashboard summarizes `filter_data` for end users without showing internal IDs (`report_id`, `*AutoID`, keys ending in `_id`) or opaque numeric enums such as `dd_mailingSign` when the value is digits-only. **Top reports** ranks by total usage (SQL aggregates `report_usage`); **Patterns** shows weekday clustering for the single most-used report. **Smart defaults → Re-run** refreshes end-date fields in the stored filter JSON to **today** in `MM/DD/YYYY` form while leaving from/start dates unchanged (ERP must accept that format in `generateReport` query strings).
+
 ### 4.2 Frontend (build-time)
 
 The frontend needs the API base URL at build time. Update `copilot-widget-v3/src/environments/environment.prod.ts`:
@@ -220,7 +222,7 @@ If the Angular app is loaded from **HTTPS** (e.g. CloudFront), the browser **blo
 ### 7.3 Database
 
 1. Ensure MySQL/RDS is in the same VPC (or reachable via VPC peering).
-2. Create read-only user with access to required tables.
+2. Create a database user with access to required tables. Read-only is sufficient for NL2SQL and report suggestions; **INSERT** is required for `ai_v3_memory_events` (V3 memory) and `ai_v3_copilot_auth_audit` (auth audit), or use a separate user / extra `GRANT` for those tables only.
 3. Create `ai_v3_memory_events` table if `V3_MEMORY_USE_MYSQL=1`. Example schema:
 
 ```sql
@@ -237,6 +239,31 @@ CREATE TABLE ai_v3_memory_events (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FULLTEXT KEY ft_question_sql (question, sql_text)
 );
+```
+
+4. Create `ai_v3_copilot_auth_audit` if `COPILOT_AUTH_AUDIT_USE_MYSQL=1` (login / logout audit). The app user needs **INSERT** on this table. Example schema:
+
+```sql
+CREATE TABLE ai_v3_copilot_auth_audit (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  event_type VARCHAR(32) NOT NULL COMMENT 'login_success | login_failure | logout',
+  occurred_at_utc DATETIME(6) NOT NULL,
+  auth_session_id VARCHAR(36) NULL COMMENT 'UUID; correlates login_success with logout',
+  idcompany INT NULL,
+  txt_company VARCHAR(200) NULL COMMENT 'gallery code from login form when known',
+  userid VARCHAR(64) NULL,
+  username VARCHAR(200) NULL,
+  failure_code VARCHAR(64) NULL,
+  failure_message VARCHAR(512) NULL,
+  client_ip VARCHAR(45) NULL,
+  user_agent VARCHAR(512) NULL,
+  role_id VARCHAR(64) NULL,
+  meta_json JSON NULL,
+  PRIMARY KEY (id),
+  KEY idx_occurred (occurred_at_utc),
+  KEY idx_company_time (idcompany, occurred_at_utc),
+  KEY idx_auth_session (auth_session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 ---
@@ -261,7 +288,8 @@ CREATE TABLE ai_v3_memory_events (
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/health` | Health check |
-| POST | `/auth/login` | Proxy login to ERP; returns JWT session |
+| POST | `/auth/login` | Proxy login to ERP; returns JWT session + `auth_session_id` for audit |
+| POST | `/auth/logout` | Records logout in `ai_v3_copilot_auth_audit` (best-effort); body includes `auth_session_id` |
 | POST | `/chat` | Legacy chat (V1/V2) |
 | POST | `/v3/ask` | V3 ask (primary copilot endpoint) |
 | POST | `/reports/suggestions` | Report usage suggestions (LLM + read-only MySQL on report tables); requires `Authorization` |

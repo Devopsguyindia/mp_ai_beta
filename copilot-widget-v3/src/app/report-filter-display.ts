@@ -88,6 +88,33 @@ function isValueSupplied(v: unknown): boolean {
   return String(v).trim().length > 0;
 }
 
+/** Do not expose internal IDs or foreign keys to end users in filter summaries. */
+function isExcludedKey(key: string): boolean {
+  const k = key.trim();
+  if (!k) {
+    return true;
+  }
+  const lower = k.toLowerCase();
+  if (lower === 'report_id' || lower === 'id') {
+    return true;
+  }
+  if (/autoID$/i.test(k)) {
+    return true;
+  }
+  if (/_id$/i.test(lower)) {
+    return true;
+  }
+  return false;
+}
+
+/** Hide opaque numeric enum values (e.g. Signature / sign option: 4). */
+function shouldSkipOpaqueNumericValue(key: string, raw: string): boolean {
+  if (key === 'dd_mailingSign' && /^\d+$/.test(raw.trim())) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Parse filter_data JSON and return label/value pairs only for non-empty values.
  */
@@ -107,11 +134,17 @@ export function summarizeReportFilters(filterData: string | null | undefined): {
   const out: { label: string; value: string }[] = [];
   const keys = Object.keys(obj).sort((a, b) => humanizeKey(a).localeCompare(humanizeKey(b)));
   for (const key of keys) {
+    if (isExcludedKey(key)) {
+      continue;
+    }
     const val = obj[key];
     if (!isValueSupplied(val)) {
       continue;
     }
     const str = String(val).trim();
+    if (shouldSkipOpaqueNumericValue(key, str)) {
+      continue;
+    }
     out.push({
       label: humanizeKey(key),
       value: formatValue(key, str)

@@ -115,6 +115,64 @@
   box-shadow: 0 0 16px rgba(212, 168, 75, 0.12);
 }
 
+.erpConnectionRow {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.erpConnectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.9;
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+
+.erpConnectionLights {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.erpLight {
+  font-size: 1.35rem;
+  line-height: 1;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.erpLightActive {
+  opacity: 1;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.35));
+}
+
+.erpLightInactive {
+  opacity: 0.22;
+  filter: none;
+}
+
+.erpLightGreen.erpLightActive {
+  filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.75));
+}
+
+.erpLightRed.erpLightActive {
+  filter: drop-shadow(0 0 10px rgba(248, 113, 113, 0.75));
+}
+
+.erpConnectionError {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #fecaca;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(127, 29, 29, 0.35);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  word-break: break-word;
+}
+
 .controls {
   display: flex;
   align-items: center;
@@ -278,34 +336,6 @@ textarea {
   color: #fde68a;
   font-size: 13px;
   line-height: 1.45;
-}
-
-.dbStatusBanner {
-  margin-top: 12px;
-  border-radius: 10px;
-  padding: 10px 14px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.45);
-  color: #bbf7d0;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.dbStatusTitle {
-  font-weight: 700;
-  color: #4ade80;
-  margin-right: 8px;
-}
-
-.dbStatusText {
-  opacity: 0.95;
-}
-
-.dbStatusDb {
-  margin-left: 6px;
-  opacity: 0.85;
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
 }
 
 .queryOutputLoader {
