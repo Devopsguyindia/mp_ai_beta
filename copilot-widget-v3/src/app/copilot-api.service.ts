@@ -15,6 +15,10 @@ export interface ChatRequest {
 
 export interface V3AskRequest extends ChatRequest {
   include_chart?: boolean;
+  /** ERP AI Insights sub-copilot */
+  erp_module?: 'contact' | 'inventory' | 'sales';
+  strict_module_scope?: boolean;
+  user_id?: string;
 }
 
 export interface GuardrailViolation {
@@ -50,6 +54,8 @@ export interface DebugInfo {
   retry_success?: boolean | null;
   resolved_idcompany?: number | null;
   selected_copilot?: CopilotType | null;
+  /** V3 orchestrator intent label */
+  routed_intent?: string | null;
   contract_guardrails?: Record<string, any> | null;
 }
 
@@ -137,6 +143,18 @@ export interface AuthLogoutRequest {
   username?: string;
 }
 
+export interface MemoryRecentItem {
+  request_id?: string | null;
+  question?: string | null;
+  copilot?: string | null;
+  intent?: string | null;
+  created_at?: string | null;
+}
+
+export interface MemoryRecentResponse {
+  items: MemoryRecentItem[];
+}
+
 export interface ReportSuggestionsResponse {
   ok: boolean;
   idcompany: number;
@@ -160,6 +178,29 @@ export class CopilotApiService {
 
   askV3(req: V3AskRequest): Observable<ChatResponse> {
     return this.http.post<ChatResponse>(`${this.baseUrl}/v3/ask`, req);
+  }
+
+  v3MemoryRecent(params: {
+    idcompany: number;
+    access_token?: string;
+    copilot?: string;
+    user_id?: string;
+    limit?: number;
+  }): Observable<MemoryRecentResponse> {
+    const q: Record<string, string | number> = { idcompany: params.idcompany };
+    if (params.access_token) {
+      q.access_token = params.access_token;
+    }
+    if (params.copilot) {
+      q.copilot = params.copilot;
+    }
+    if (params.user_id) {
+      q.user_id = params.user_id;
+    }
+    if (params.limit != null) {
+      q.limit = params.limit;
+    }
+    return this.http.get<MemoryRecentResponse>(`${this.baseUrl}/v3/memory/recent`, { params: q });
   }
 
   reportSuggestions(req: ReportSuggestionsRequest): Observable<ReportSuggestionsResponse> {

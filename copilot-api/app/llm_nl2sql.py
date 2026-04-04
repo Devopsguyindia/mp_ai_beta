@@ -52,6 +52,7 @@ Inventory focus:
     "customer": """
 Customer focus:
 - Prefer company_contact_data1 and company_sale/company_sale_data.
+- company_contact_data1 is a view: valid contacts are already filtered; never add is_deleted = 0 or any is_deleted predicate.
 - Use only columns from the schema above for customer identity.
 - Typical asks: LTV/top customers, overdue balances, inactive customers.
 """.strip(),
@@ -256,6 +257,21 @@ def _repair_common_datetime_function_calls(sql: str) -> str:
     return out
 
 
+def _strip_is_deleted_on_company_contact_data1(sql: str) -> str:
+    """
+    company_contact_data1 is a view that already exposes valid contacts only.
+    The LLM often adds `AND is_deleted = 0`; strip it when this relation is used.
+    """
+    if re.search(r"(?i)\bcompany_contact_data1\b", sql) is None:
+        return sql
+    out = sql
+    out = re.sub(r"(?i)\s+AND\s+COALESCE\s*\(\s*is_deleted\s*,\s*0\s*\)\s*=\s*0\b", "", out)
+    out = re.sub(r"(?i)\s+AND\s+is_deleted\s*=\s*0\b", "", out)
+    out = re.sub(r"(?i)\bWHERE\s+is_deleted\s*=\s*0\s+AND\b", "WHERE ", out)
+    out = _repair_dangling_boolean_tokens(out)
+    return out
+
+
 def _sanitize_sql(sql: str, max_limit: int) -> str:
     out = sql.strip().strip("`").rstrip(";")
     out = _normalize_idcompany_placeholders(out)
@@ -265,6 +281,7 @@ def _sanitize_sql(sql: str, max_limit: int) -> str:
     out = _inject_tenant_filter(out)
     out = _enforce_or_parentheses_scope(out)
     out = _enforce_shared_edition_predicate(out)
+    out = _strip_is_deleted_on_company_contact_data1(out)
     out = _coerce_limit(out, max_limit=max_limit)
     return out
 
@@ -334,6 +351,7 @@ Rules:
   - For sold-item queries from company_sale_data, do NOT use `edition_type`.
   - Use `EditionName` or `item_edition_type` in company_sale_data.
   - `edition_type` exists in company_item/company_item_data context.
+  - Queries against `company_contact_data1` must NOT include `is_deleted` in WHERE; the view already returns valid rows only.
 - Set `intent` to a copilot-prefixed value (e.g. {selected_copilot}_something).
 - Do not include comments, markdown, or explanations outside JSON.
 """.strip()

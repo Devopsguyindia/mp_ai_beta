@@ -325,6 +325,9 @@
     {
       "table": "company_contact_data1",
       "purpose": "VIEW: Uniform view for all contact types (artist, customer, vendor, prospect). Use for contact queries.",
+      "critical_notes": [
+        "Valid contact rows are already enforced by the view definition. Never add is_deleted = 0, COALESCE(is_deleted,0)=0, or any predicate on is_deleted when querying this view."
+      ],
       "columns": [
         {"name": "idcompany_contact", "purpose": "PK"},
         {"name": "idcompany", "purpose": "Tenant filter (required)"},
@@ -343,7 +346,7 @@
         {"name": "is_artist", "purpose": "1=Artist"},
         {"name": "is_customer", "purpose": "1=Customer"},
         {"name": "is_vendor", "purpose": "1=Vendor"},
-        {"name": "is_deleted", "purpose": "Deleted flag"}
+        {"name": "is_deleted", "purpose": "Do not filter on this column; the view already exposes only valid contacts"}
       ]
     },
     {
