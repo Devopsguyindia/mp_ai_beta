@@ -12,9 +12,11 @@ import mysql.connector
 from ..llm_nl2sql import generate_query_with_llm
 from ..sql_guardrails import validate_select_sql
 from ..sql_runner import run_select_query
+from ..sql_user_messages import SQL_QUERY_USER_FRIENDLY_ANSWER
 from .agents.chart_agent import build_chart_spec
 from .agents.insight_agent import build_insights
 from .agents.memory_agent import fetch_memory_context
+from .agents.module_scope_agent import classify_module_scope
 from .agents.planner_agent import plan_question
 from .agents.schema_agent import retrieve_schema_context
 from .agents.sql_agent import generate_sql
@@ -23,7 +25,10 @@ from .memory.log_store import append_memory_event
 from .models import (
     AgentTrace,
     DbConnectionStatus,
+    MemoryContext,
+    PlannerOutput,
     SQLGenerationOutput,
+    SchemaContext,
     V3AskRequest,
     V3AskResponse,
     V3DebugInfo,
@@ -64,12 +69,98 @@ def _is_unknown_column_db_error(e: BaseException) -> bool:
     return "unknown column" in msg and ("1054" in str(e) or "42s22" in msg.lower())
 
 
+def _v3_sql_execution_failed_response(
+    *,
+    req: V3AskRequest,
+    resolved_idcompany: int,
+    start: float,
+    request_id: str,
+    server_ts_utc: str,
+    planner: PlannerOutput,
+    sql_out: SQLGenerationOutput,
+    validated: ValidationOutput,
+    executed_sql: str,
+    params: dict[str, Any],
+    memory: MemoryContext,
+    schema: SchemaContext,
+    exc: BaseException,
+) -> V3AskResponse:
+    elapsed_ms = int((time.time() - start) * 1000)
+    internal_err = str(exc)
+    debug = None
+    if req.debug:
+        debug = V3DebugInfo(
+            request_id=request_id,
+            server_ts_utc=server_ts_utc,
+            resolved_idcompany=resolved_idcompany,
+            selected_copilot=planner.copilot,
+            routed_intent=planner.intent_hint,
+            generation_path=sql_out.generation_path,
+            generation_error=internal_err,
+            guardrails=validated.guardrails,
+            retry_attempted=validated.retry_attempted,
+            retry_success=validated.retry_success,
+            rendered_sql_preview=_render_sql_preview(executed_sql, params),
+            elapsed_ms=elapsed_ms,
+            rows_returned=0,
+            trace=AgentTrace(
+                planner=planner.model_dump(),
+                memory=memory.model_dump(),
+                schema=schema.model_dump(),
+                sql=sql_out.model_dump(),
+                validator=validated.model_dump(),
+                execution={"rows_returned": 0, "error": internal_err},
+                insight={"count": 0},
+                chart={"enabled": False, "created": False},
+            ),
+        )
+    return V3AskResponse(
+        answer=SQL_QUERY_USER_FRIENDLY_ANSWER,
+        data=[],
+        insights=[],
+        follow_up_prompts=[],
+        chart_spec=None,
+        confidence=0.0,
+        assumptions=[],
+        row_limit_notice=None,
+        db_status=DbConnectionStatus(
+            ok=False,
+            detail="The generated query could not be executed.",
+            database=os.getenv("MYSQL_DATABASE"),
+        ),
+        debug=debug,
+    )
+
+
 def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
     start = time.time()
     request_id = str(uuid.uuid4())
     server_ts_utc = datetime.now(timezone.utc).isoformat()
 
     planner = plan_question(question=req.question, requested_copilot=req.copilot)
+    if req.strict_module_scope and not req.erp_module:
+        raise ValueError("strict_module_scope requires erp_module to be set")
+    if req.strict_module_scope and req.erp_module:
+        allowed, refusal_msg = classify_module_scope(
+            question=req.question,
+            erp_module=req.erp_module,
+            copilot=planner.copilot,
+        )
+        if not allowed:
+            return V3AskResponse(
+                answer=refusal_msg
+                or f"This question is outside the {req.erp_module} AI Insights scope. Ask something specific to this module.",
+                data=[],
+                insights=[],
+                follow_up_prompts=[],
+                chart_spec=None,
+                confidence=0.0,
+                assumptions=["Question blocked by module scope classifier."],
+                row_limit_notice=None,
+                db_status=None,
+                debug=None,
+                scope_blocked=True,
+            )
     memory = fetch_memory_context(idcompany=resolved_idcompany, question=req.question, limit=6)
     schema = retrieve_schema_context(question=req.question, copilot=planner.copilot)
     schema_text = "\n".join(schema.context_chunks)
@@ -145,7 +236,21 @@ def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
             break
         except Exception as e:
             if not _is_unknown_column_db_error(e) or attempt >= max_db_retries:
-                raise
+                return _v3_sql_execution_failed_response(
+                    req=req,
+                    resolved_idcompany=resolved_idcompany,
+                    start=start,
+                    request_id=request_id,
+                    server_ts_utc=server_ts_utc,
+                    planner=planner,
+                    sql_out=sql_out,
+                    validated=validated,
+                    executed_sql=executed_sql,
+                    params=params,
+                    memory=memory,
+                    schema=schema,
+                    exc=e,
+                )
             db_retry_count += 1
             repaired, repair_err = generate_query_with_llm(
                 req.question,
@@ -154,7 +259,21 @@ def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
                 error_context={"previous_sql": validated.sql, "db_error": str(e)},
             )
             if repaired is None:
-                raise
+                return _v3_sql_execution_failed_response(
+                    req=req,
+                    resolved_idcompany=resolved_idcompany,
+                    start=start,
+                    request_id=request_id,
+                    server_ts_utc=server_ts_utc,
+                    planner=planner,
+                    sql_out=sql_out,
+                    validated=validated,
+                    executed_sql=executed_sql,
+                    params=params,
+                    memory=memory,
+                    schema=schema,
+                    exc=e,
+                )
             guard = validate_select_sql(sql=repaired.sql, required_idcompany_param="idcompany")
             if not guard.ok:
                 raise ValueError(
@@ -208,18 +327,25 @@ def run_v3_ask(*, req: V3AskRequest, resolved_idcompany: int) -> V3AskResponse:
     chart_enabled = req.include_chart and os.getenv("V3_CHART_AGENT_ENABLED", "1") in {"1", "true", "TRUE", "yes", "YES"}
     chart_spec = build_chart_spec(rows=result.rows, question=req.question, enabled=chart_enabled)
 
-    append_memory_event(
-        {
-            "request_id": request_id,
-            "ts_utc": server_ts_utc,
-            "idcompany": resolved_idcompany,
-            "question": req.question,
-            "copilot": planner.copilot,
-            "intent": sql_out.intent,
-            "sql": executed_sql,
-            "rows_returned": len(result.rows),
-        }
-    )
+    mem_event: dict[str, Any] = {
+        "request_id": request_id,
+        "ts_utc": server_ts_utc,
+        "idcompany": resolved_idcompany,
+        "question": req.question,
+        "copilot": planner.copilot,
+        "intent": sql_out.intent,
+        "sql": executed_sql,
+        "rows_returned": len(result.rows),
+    }
+    if req.user_id is not None:
+        mem_event["user_id"] = str(req.user_id).strip() or None
+    if req.erp_module:
+        mem_event["source"] = "module_insights"
+        mem_event["erp_module"] = req.erp_module
+        mem_event["client"] = "erp_embedded"
+    if req.strict_module_scope:
+        mem_event["strict_module_scope"] = True
+    append_memory_event(mem_event)
 
     elapsed_ms = int((time.time() - start) * 1000)
     rollout = evaluate_rollout_gates(confidence=planner.confidence, rows_returned=len(result.rows))

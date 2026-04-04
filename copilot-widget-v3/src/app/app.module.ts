@@ -7,6 +7,7 @@ import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { LoginComponent } from './login.component';
 import { DashboardComponent } from './dashboard.component';
+import { ModuleInsightsPanelComponent } from './module-insights-panel.component';
 import { ReportFilterSummaryPipe } from './report-filter-summary.pipe';
 
 @NgModule({
@@ -14,6 +15,7 @@ import { ReportFilterSummaryPipe } from './report-filter-summary.pipe';
     AppComponent,
     LoginComponent,
     DashboardComponent,
+    ModuleInsightsPanelComponent,
     ReportFilterSummaryPipe
   ],
   imports: [

@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -21,6 +21,8 @@ from .nl2sql_engine import generate_query
 from .v3.rag.schema_index import build_schema_from_registry
 from .sql_guardrails import GuardrailResult, validate_select_sql
 from .sql_runner import QueryResult, run_select_query
+from .sql_user_messages import SQL_QUERY_USER_FRIENDLY_ANSWER
+from .v3.memory.log_store import get_recent_events_filtered
 from .v3.models import DbConnectionStatus, V3AskRequest, V3AskResponse
 from .v3.orchestrator import run_v3_ask
 from .report_suggestions import router as report_suggestions_router
@@ -340,6 +342,69 @@ def _validate_runtime_contract(
     )
 
 
+def _chat_sql_execution_failed_response(
+    *,
+    req: ChatRequest,
+    request_id: str,
+    server_ts_utc: str,
+    start: float,
+    internal_error: str,
+    sql: str,
+    params: dict[str, Any],
+    guard: GuardrailResult,
+    matched_intent: str,
+    generation_path: str,
+    retry_attempted: bool,
+    retry_success: bool,
+    resolved_idcompany: int,
+    selected_copilot: str,
+    routed_intent: str,
+    contract_guardrails: dict[str, Any],
+    requested_limit: int | None = None,
+    applied_limit: int | None = None,
+    window_label: str | None = None,
+) -> ChatResponse:
+    elapsed_ms = int((time.time() - start) * 1000)
+    debug = None
+    if req.debug:
+        debug = DebugInfo(
+            request_id=request_id,
+            server_ts_utc=server_ts_utc,
+            input_question=req.question,
+            matched_intent=matched_intent,
+            router_model=os.getenv("OPENAI_MODEL_ROUTER"),
+            sql_model=os.getenv("OPENAI_MODEL_SQL"),
+            generated_sql=sql,
+            rendered_sql_preview=_render_sql_preview(sql, params),
+            parameters=params,
+            guardrails=guard,
+            elapsed_ms=elapsed_ms,
+            rows_returned=0,
+            requested_limit=requested_limit,
+            applied_limit=applied_limit,
+            window_label=window_label,
+            generation_path=generation_path,
+            generation_error=internal_error,
+            retry_attempted=retry_attempted,
+            retry_success=retry_success,
+            resolved_idcompany=resolved_idcompany,
+            selected_copilot=selected_copilot,
+            routed_intent=routed_intent,
+            contract_guardrails=contract_guardrails,
+        )
+    return ChatResponse(
+        answer=SQL_QUERY_USER_FRIENDLY_ANSWER,
+        data=[],
+        debug=debug,
+        row_limit_notice=None,
+        db_status=DbConnectionStatus(
+            ok=False,
+            detail="The generated query could not be executed.",
+            database=os.getenv("MYSQL_DATABASE"),
+        ),
+    )
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -651,16 +716,76 @@ def chat(req: ChatRequest) -> ChatResponse:
                         result = repaired_result
                         retry_success = True
                     except Exception as e2:
-                        raise HTTPException(status_code=500, detail={"error": "query_failed", "message": str(e2)})
+                        return _chat_sql_execution_failed_response(
+                            req=req,
+                            request_id=request_id,
+                            server_ts_utc=server_ts_utc,
+                            start=start,
+                            internal_error=str(e2),
+                            sql=repaired_sql,
+                            params=repaired_params,
+                            guard=repaired_guard,
+                            matched_intent=repaired_query.intent,
+                            generation_path=generation_path,
+                            retry_attempted=retry_attempted,
+                            retry_success=retry_success,
+                            resolved_idcompany=resolved_idcompany,
+                            selected_copilot=selected_copilot,
+                            routed_intent=routed_intent,
+                            contract_guardrails=repaired_contract_guard,
+                            requested_limit=repaired_query.requested_limit,
+                            applied_limit=repaired_query.applied_limit,
+                            window_label=repaired_query.window_label,
+                        )
                 else:
                     raise HTTPException(
                         status_code=400,
                         detail={"error": "sql_blocked_after_retry", "guardrails": repaired_guard.model_dump()},
                     )
             else:
-                raise HTTPException(status_code=500, detail={"error": "query_failed", "message": err_msg})
+                return _chat_sql_execution_failed_response(
+                    req=req,
+                    request_id=request_id,
+                    server_ts_utc=server_ts_utc,
+                    start=start,
+                    internal_error=err_msg,
+                    sql=sql,
+                    params=params,
+                    guard=guard,
+                    matched_intent=matched_intent,
+                    generation_path=generation_path,
+                    retry_attempted=retry_attempted,
+                    retry_success=retry_success,
+                    resolved_idcompany=resolved_idcompany,
+                    selected_copilot=selected_copilot,
+                    routed_intent=routed_intent,
+                    contract_guardrails=contract_guardrails,
+                    requested_limit=query.requested_limit,
+                    applied_limit=query.applied_limit,
+                    window_label=query.window_label,
+                )
         else:
-            raise HTTPException(status_code=500, detail={"error": "query_failed", "message": err_msg})
+            return _chat_sql_execution_failed_response(
+                req=req,
+                request_id=request_id,
+                server_ts_utc=server_ts_utc,
+                start=start,
+                internal_error=err_msg,
+                sql=sql,
+                params=params,
+                guard=guard,
+                matched_intent=matched_intent,
+                generation_path=generation_path,
+                retry_attempted=retry_attempted,
+                retry_success=retry_success,
+                resolved_idcompany=resolved_idcompany,
+                selected_copilot=selected_copilot,
+                routed_intent=routed_intent,
+                contract_guardrails=contract_guardrails,
+                requested_limit=query.requested_limit,
+                applied_limit=query.applied_limit,
+                window_label=query.window_label,
+            )
 
     elapsed_ms = int((time.time() - start) * 1000)
 
@@ -710,6 +835,50 @@ def chat(req: ChatRequest) -> ChatResponse:
             database=os.getenv("MYSQL_DATABASE"),
         ),
     )
+
+
+class MemoryRecentItem(BaseModel):
+    request_id: str | None = None
+    question: str | None = None
+    copilot: str | None = None
+    intent: str | None = None
+    created_at: str | None = None
+
+
+class MemoryRecentResponse(BaseModel):
+    items: list[MemoryRecentItem]
+
+
+@app.get("/v3/memory/recent", response_model=MemoryRecentResponse)
+def v3_memory_recent(
+    idcompany: int = Query(..., ge=1),
+    access_token: str | None = None,
+    copilot: str | None = Query(None, description="Filter history to this copilot (e.g. customer, inventory, sales)."),
+    user_id: str | None = Query(None),
+    limit: int = Query(10, ge=1, le=50),
+) -> MemoryRecentResponse:
+    if os.getenv("V3_ASK_ENABLED", "1") not in {"1", "true", "TRUE", "yes", "YES"}:
+        raise HTTPException(status_code=404, detail={"error": "v3_disabled"})
+    resolved = _resolve_idcompany_from_request(req_idcompany=idcompany, access_token=access_token)
+    rows = get_recent_events_filtered(
+        idcompany=resolved,
+        limit=limit,
+        copilot=copilot,
+        user_id=user_id,
+    )
+    items: list[MemoryRecentItem] = []
+    for r in rows:
+        ca = r.get("created_at")
+        items.append(
+            MemoryRecentItem(
+                request_id=str(r.get("request_id") or "") or None,
+                question=r.get("question"),
+                copilot=r.get("copilot"),
+                intent=r.get("intent"),
+                created_at=str(ca) if ca is not None else None,
+            )
+        )
+    return MemoryRecentResponse(items=items)
 
 
 @app.post("/v3/ask", response_model=V3AskResponse)

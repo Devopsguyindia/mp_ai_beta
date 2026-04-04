@@ -1,0 +1,204 @@
+<div class="miOverlay">
+  <div class="miPanel">
+    <header class="miHeader">
+      <div>
+        <div class="miTitle">{{ title }}</div>
+        <div class="miSub">Read-only insights (Phase 1). Actions coming in Phase 2.</div>
+      </div>
+      <button type="button" class="miClose" (click)="close()" aria-label="Close">✕</button>
+    </header>
+
+    <nav class="miTabs" *ngIf="erpModule !== 'reports'">
+      <button type="button" [class.active]="activeTab === 'chat'" (click)="activeTab = 'chat'">Chat</button>
+      <button type="button" [class.active]="activeTab === 'history'" (click)="activeTab = 'history'">Suggestions &amp; history</button>
+      <button type="button" [class.active]="activeTab === 'details'" (click)="activeTab = 'details'">Details</button>
+    </nav>
+    <nav class="miTabs" *ngIf="erpModule === 'reports'">
+      <button type="button" [class.active]="activeTab === 'reports'" (click)="activeTab = 'reports'">Report usage insights</button>
+    </nav>
+
+    <div class="miToolbar">
+      <label class="miCheck" *ngIf="erpModule !== 'reports'">
+        <input type="checkbox" [(ngModel)]="showDebug" />
+        <span>Show work (debug)</span>
+      </label>
+      <label class="miCheck" *ngIf="erpModule !== 'reports'">
+        <input type="checkbox" [(ngModel)]="displayChart" />
+        <span>Display chart output</span>
+      </label>
+    </div>
+
+    <!-- Reports module -->
+    <section class="miBody" *ngIf="erpModule === 'reports' && activeTab === 'reports'">
+      <div class="miReportToolbar">
+        <span>Scope:</span>
+        <button type="button" [class.on]="reportScope === 'gallery'" (click)="setReportScope('gallery')">Gallery</button>
+        <button type="button" [class.on]="reportScope === 'me'" (click)="setReportScope('me')">Me</button>
+      </div>
+      <div class="miLoading" *ngIf="reportSuggestionsLoading">Loading report insights…</div>
+      <div class="miError" *ngIf="reportSuggestionsError">{{ reportSuggestionsError }}</div>
+      <div class="miEmpty" *ngIf="!reportSuggestionsLoading && reportInsightsEmpty()">No report usage data yet.</div>
+
+      <div class="miReportGrid" *ngIf="reportSuggestions && !reportInsightsEmpty()">
+        <div class="miReportCol">
+          <h3>Top reports</h3>
+          <ol>
+            <li *ngFor="let t of reportSuggestions.top_reports; let i = index">
+              <span class="miRank">{{ i + 1 }}</span>
+              {{ t.report_name || ('Report ' + t.report_id) }}
+              <span class="miMeta">· {{ t.total_usage }} runs</span>
+            </li>
+          </ol>
+        </div>
+        <div class="miReportCol">
+          <h3>Recent runs</h3>
+          <ul>
+            <li *ngFor="let r of reportSuggestions.recent_runs">
+              <button
+                type="button"
+                class="miLink"
+                [disabled]="rerunBusyHash === r.filter_hash"
+                (click)="rerunReport(r.filter_data, r.filter_hash, false)"
+              >
+                {{ r.report_name || ('Report ' + r.report_id) }}
+              </button>
+            </li>
+          </ul>
+        </div>
+        <div class="miReportCol">
+          <h3>Smart defaults</h3>
+          <ul>
+            <li *ngFor="let s of reportSuggestions.smart_defaults">
+              <button
+                type="button"
+                class="miLink"
+                [disabled]="rerunBusyHash === s.filter_hash"
+                (click)="rerunReport(s.filter_data, s.filter_hash, true)"
+              >
+                Re-run (rolling dates)
+              </button>
+              <span class="miMeta">{{ s.report_name || ('Report ' + s.report_id) }}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chat tab -->
+    <section class="miBody" *ngIf="erpModule !== 'reports' && activeTab === 'chat'">
+      <div class="miCards">
+        <div class="miCard"><span class="miCardLabel">Rows</span><span class="miCardVal">{{ rowsCardValue }}</span></div>
+        <div class="miCard"><span class="miCardLabel">Generation</span><span class="miCardVal">{{ generationCardValue }}</span></div>
+        <div class="miCard"><span class="miCardLabel">Intent</span><span class="miCardVal">{{ intentLabel }}</span></div>
+      </div>
+
+      <div class="miPrompts">
+        <div class="miPromptsTitle">Suggested prompts</div>
+        <div class="miChips">
+          <button type="button" class="miChip" *ngFor="let p of suggestedPrompts()" (click)="usePrompt(p)">{{ p }}</button>
+        </div>
+      </div>
+
+      <div class="miPhase2">
+        <span class="miPhase2Label">Suggested actions (Phase 2)</span>
+        <button type="button" class="miPhase2Btn" disabled [title]="phase2Hint">Export list</button>
+        <button type="button" class="miPhase2Btn" disabled [title]="phase2Hint">Open in grid</button>
+      </div>
+
+      <div class="miMessages" *ngIf="response">
+        <div class="miMsg" [class.blocked]="response.scope_blocked">
+          {{ response.answer }}
+        </div>
+        <div class="miInsights" *ngIf="response.insights?.length">
+          <div class="miInsight" *ngFor="let ins of response.insights">
+            <strong>{{ ins.title }}</strong>
+            <span>{{ ins.detail }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="miChartBlock" *ngIf="showBarChart">
+        <div class="miChartTitle">{{ response?.chart_spec?.title || 'Chart' }}</div>
+        <div class="miBarWrap">
+          <div class="miBarRow" *ngFor="let label of chartLabels; let i = index">
+            <span class="miBarLabel">{{ label }}</span>
+            <div class="miBarTrack">
+              <div class="miBarFill" [style.width.%]="getBarWidth(i)"></div>
+            </div>
+            <span class="miBarVal">{{ chartValues[i] | number: '1.0-2' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="miDonutBlock" *ngIf="showDonutChart">
+        <div class="miChartTitle">{{ response?.chart_spec?.title || 'Distribution' }}</div>
+        <div class="miDonutRow">
+          <div class="miDonut" [style.background]="donutGradient"></div>
+          <ul class="miDonutLegend">
+            <li *ngFor="let leg of donutLegend">
+              <span class="miSwatch" [style.background]="leg.color"></span>
+              {{ leg.label }} — {{ leg.value | number: '1.0-2' }}
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="miTableWrap" *ngIf="response?.data?.length && !response.scope_blocked">
+        <table class="miTable">
+          <thead>
+            <tr>
+              <th *ngFor="let k of dataKeysList">{{ k }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of response.data">
+              <td *ngFor="let k of dataKeysList">{{ row[k] }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="miError" *ngIf="error">{{ error }}</div>
+
+      <div class="miInputRow">
+        <input [(ngModel)]="question" placeholder="Ask about this module…" (keyup.enter)="submit()" />
+        <button type="button" (click)="submit()" [disabled]="loading || !question.trim()">
+          {{ loading ? '…' : 'Ask' }}
+        </button>
+      </div>
+    </section>
+
+    <!-- History tab -->
+    <section class="miBody miHistory" *ngIf="erpModule !== 'reports' && activeTab === 'history'">
+      <p class="miHint">Last 10 questions for this module (server memory).</p>
+      <div class="miLoading" *ngIf="memoryLoading">Loading…</div>
+      <ul class="miHistList">
+        <li *ngFor="let m of memoryItems">
+          <button type="button" class="miHistBtn" (click)="question = (m.question || ''); activeTab = 'chat'">
+            {{ m.question }}
+          </button>
+          <span class="miHistMeta">{{ m.created_at }}</span>
+        </li>
+      </ul>
+      <div class="miEmpty" *ngIf="!memoryLoading && !memoryItems.length">No history yet.</div>
+
+      <div class="miAccordion">
+        <details open>
+          <summary>AI suggested prompts (up to 5)</summary>
+          <div class="miChips">
+            <button type="button" class="miChip" *ngFor="let p of staticPromptsForModule().slice(0, 5)" (click)="usePrompt(p)">
+              {{ p }}
+            </button>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- Details / debug tab -->
+    <section class="miBody miDetails" *ngIf="erpModule !== 'reports' && activeTab === 'details'">
+      <div class="miEmpty" *ngIf="!response">Run a question in the Chat tab to see SQL and debug info.</div>
+      <pre class="miPre" *ngIf="response?.debug && showDebug">{{ response.debug | json }}</pre>
+      <p *ngIf="response && !showDebug">Enable “Show work (debug)” to see details.</p>
+    </section>
+  </div>
+</div>

@@ -17,6 +17,19 @@ class V3AskRequest(BaseModel):
     copilot: CopilotType | None = None
     include_chart: bool = False
     debug: bool = False
+    # ERP AI Insights (module sub-copilot); optional — default keeps legacy /v3/ask behavior unchanged.
+    erp_module: Literal["contact", "inventory", "sales"] | None = Field(
+        default=None,
+        description="When set with strict_module_scope, scope classifier uses this ERP module label.",
+    )
+    strict_module_scope: bool = Field(
+        default=False,
+        description="If true, refuse questions that appear outside erp_module/copilot domain.",
+    )
+    user_id: str | None = Field(
+        default=None,
+        description="Optional user id for memory scoping (ERP session).",
+    )
 
 
 class PlannerOutput(BaseModel):
@@ -124,3 +137,7 @@ class V3AskResponse(BaseModel):
     )
     db_status: DbConnectionStatus | None = None
     debug: V3DebugInfo | None = None
+    scope_blocked: bool | None = Field(
+        default=None,
+        description="True when strict_module_scope rejected the question before running SQL.",
+    )

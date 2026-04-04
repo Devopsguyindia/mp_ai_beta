@@ -23,6 +23,20 @@ def _memory_table_name() -> str:
     return os.getenv("V3_MEMORY_TABLE_NAME", "ai_v3_memory_events").strip() or "ai_v3_memory_events"
 
 
+def _memory_meta_payload(event: dict[str, Any]) -> dict[str, Any]:
+    meta: dict[str, Any] = {
+        "ts_utc": event.get("ts_utc"),
+        "source": event.get("source") or "v3_orchestrator",
+    }
+    if event.get("erp_module"):
+        meta["erp_module"] = event.get("erp_module")
+    if event.get("client"):
+        meta["client"] = event.get("client")
+    if event.get("strict_module_scope"):
+        meta["strict_module_scope"] = True
+    return meta
+
+
 def _connect_mysql():
     return mysql.connector.connect(
         host=os.getenv("MYSQL_HOST", "127.0.0.1"),
@@ -47,17 +61,14 @@ def _append_memory_event_mysql(event: dict[str, Any]) -> None:
     payload = {
         "request_id": str(event.get("request_id") or ""),
         "idcompany": int(event.get("idcompany") or 0),
-        "user_id": event.get("user_id"),
+        "user_id": event.get("user_id") if event.get("user_id") is not None else None,
         "copilot": str(event.get("copilot") or "unknown"),
         "intent": event.get("intent"),
         "question": str(event.get("question") or ""),
         "sql_text": event.get("sql"),
         "rows_returned": int(event.get("rows_returned") or 0),
         "meta_json": json.dumps(
-            {
-                "ts_utc": event.get("ts_utc"),
-                "source": "v3_orchestrator",
-            },
+            _memory_meta_payload(event),
             ensure_ascii=True,
         ),
     }
@@ -189,3 +200,59 @@ def get_recent_events(*, idcompany: int, limit: int = 10, query: str | None = No
             # Fallback to file log if MySQL memory retrieval fails.
             pass
     return _get_recent_events_file(idcompany=idcompany, limit=limit, query=query)
+
+
+def get_recent_events_filtered(
+    *,
+    idcompany: int,
+    limit: int = 10,
+    copilot: str | None = None,
+    user_id: str | None = None,
+) -> list[dict[str, Any]]:
+    table_name = _memory_table_name()
+    safe_limit = int(max(min(limit, 50), 1))
+    conditions = ["idcompany = %(idcompany)s"]
+    params: dict[str, Any] = {"idcompany": int(idcompany), "limit": safe_limit}
+    if copilot:
+        conditions.append("copilot = %(copilot)s")
+        params["copilot"] = str(copilot)
+    if user_id is not None and str(user_id).strip() != "":
+        conditions.append("user_id = %(user_id)s")
+        params["user_id"] = str(user_id).strip()
+    where_clause = " AND ".join(conditions)
+    sql = (
+        f"SELECT request_id, idcompany, user_id, copilot, intent, question, sql_text, rows_returned, created_at "
+        f"FROM `{table_name}` "
+        f"WHERE {where_clause} "
+        "ORDER BY created_at DESC "
+        "LIMIT %(limit)s"
+    )
+    if _use_mysql_memory():
+        try:
+            conn = _connect_mysql()
+            try:
+                cur = conn.cursor(dictionary=True)
+                try:
+                    cur.execute(sql, params)
+                    rows = list(cur.fetchall())
+                finally:
+                    cur.close()
+            finally:
+                conn.close()
+            rows.reverse()
+            return _normalize_event_rows(rows)
+        except Exception:
+            pass
+    # File fallback: pull recency list and filter
+    rows = _get_recent_events_file(idcompany=idcompany, limit=200, query=None)
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if copilot and str(r.get("copilot") or "") != copilot:
+            continue
+        if user_id is not None and str(user_id).strip() != "":
+            if str(r.get("user_id") or "") != str(user_id).strip():
+                continue
+        out.append(r)
+        if len(out) >= safe_limit:
+            break
+    return out

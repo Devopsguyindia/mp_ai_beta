@@ -1,0 +1,10 @@
+---
+description: NL2SQL — company_contact_data1 view must not use is_deleted filters
+alwaysApply: true
+---
+
+# company_contact_data1 (contact view)
+
+- `company_contact_data1` is a **view** that already exposes only valid contact rows.
+- **Do not** add `is_deleted = 0`, `COALESCE(is_deleted,0) = 0`, or any `is_deleted` predicate in `WHERE` when selecting from this view.
+- Prompt/schema/guardrail code in `copilot-api` encodes this; keep behavior aligned if you change NL2SQL or the schema registry.
