@@ -26,7 +26,35 @@ export interface LoginResponse {
   session: SessionInfo;
 }
 
+/** Parent iframe postMessage contract (see docs/ERP_MODULE_INSIGHTS_INTEGRATION_GUIDE.md). */
+export interface CopilotAuthPostMessage {
+  type: 'copilot-auth';
+  access_token: string;
+  idcompany: number;
+  user_id?: string | null;
+  /** After session is applied, navigate here if the user is on /login (e.g. /module-insights/contact). */
+  redirect_to?: string | null;
+}
+
 const SESSION_KEY = 'copilotSession';
+
+function decodeJwtPayloadUnverified(token: string): Record<string, unknown> {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) {
+      return {};
+    }
+    let payload = parts[1];
+    payload += '='.repeat((4 - (payload.length % 4)) % 4);
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const data = JSON.parse(decoded) as unknown;
+    return typeof data === 'object' && data !== null && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -65,6 +93,39 @@ export class AuthService {
 
   logout(): void {
     localStorage.removeItem(SESSION_KEY);
+  }
+
+  /**
+   * Apply session from ERP parent iframe postMessage (same storage shape as login).
+   * Returns true if session was saved; false if payload invalid.
+   */
+  applyEmbeddedSession(payload: CopilotAuthPostMessage): boolean {
+    const token = (payload.access_token || '').trim();
+    const idcompany = Number(payload.idcompany);
+    if (!token || !Number.isFinite(idcompany) || idcompany < 1) {
+      return false;
+    }
+    const token_payload = decodeJwtPayloadUnverified(token) as Record<string, any>;
+    const uid =
+      payload.user_id != null && String(payload.user_id).trim() !== ''
+        ? String(payload.user_id).trim()
+        : (token_payload['userid'] ?? token_payload['user_id'] ?? token_payload['sub'] ?? null);
+    const session: SessionInfo = {
+      access_token: token,
+      token_payload,
+      idcompany,
+      userid: uid != null ? String(uid) : null,
+      username: token_payload['username'] != null ? String(token_payload['username']) : null,
+      firstname: token_payload['firstname'] != null ? String(token_payload['firstname']) : null,
+      lastname: token_payload['lastname'] != null ? String(token_payload['lastname']) : null,
+      company_name: token_payload['company_name'] != null ? String(token_payload['company_name']) : null,
+      role_name: token_payload['role_name'] != null ? String(token_payload['role_name']) : null,
+      role_id: token_payload['role'] != null ? String(token_payload['role']) : null,
+      idcompany_location: token_payload['idcompany_location'] != null ? String(token_payload['idcompany_location']) : null,
+      location_name: token_payload['location_name'] != null ? String(token_payload['location_name']) : null,
+    };
+    this.saveSession(session);
+    return true;
   }
 }
 

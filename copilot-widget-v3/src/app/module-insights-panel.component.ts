@@ -2,13 +2,14 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService, SessionInfo } from './auth.service';
-import {
-  ChatResponse,
-  CopilotApiService,
-  CopilotType,
-  MemoryRecentItem,
-  ReportSuggestionsResponse
-} from './copilot-api.service';
+import { ChatResponse, CopilotApiService, CopilotType, ReportSuggestionsResponse } from './copilot-api.service';
+
+/** Local prompt history (same scoping pattern as dashboard) with timestamp for display. */
+export interface InsightsHistoryEntry {
+  prompt: string;
+  at: string;
+}
+
 export type ErpModuleParam = 'contact' | 'inventory' | 'sales' | 'reports';
 
 @Component({
@@ -21,6 +22,8 @@ export class ModuleInsightsPanelComponent implements OnInit {
   erpModule: ErpModuleParam = 'contact';
 
   activeTab: 'chat' | 'history' | 'details' | 'reports' = 'chat';
+  /** Module insights only: default light per product spec */
+  insightsTheme: 'light' | 'dark' = 'light';
   showDebug = true;
   displayChart = true;
 
@@ -29,8 +32,8 @@ export class ModuleInsightsPanelComponent implements OnInit {
   error: string | null = null;
   response: ChatResponse | null = null;
 
-  memoryItems: MemoryRecentItem[] = [];
-  memoryLoading = false;
+  /** Last 10 prompts for this user + insights module (localStorage; mirrors main V3 copilot history pattern). */
+  historyEntries: InsightsHistoryEntry[] = [];
 
   reportSuggestions: ReportSuggestionsResponse | null = null;
   reportSuggestionsLoading = false;
@@ -59,10 +62,11 @@ export class ModuleInsightsPanelComponent implements OnInit {
       this.erpModule = ['contact', 'inventory', 'sales', 'reports'].includes(m) ? m : 'contact';
       if (this.erpModule === 'reports') {
         this.activeTab = 'reports';
+        this.historyEntries = [];
         this.loadReportSuggestions();
       } else {
         this.activeTab = 'chat';
-        this.loadMemoryRecent();
+        this.loadHistory();
       }
     });
   }
@@ -152,31 +156,84 @@ export class ModuleInsightsPanelComponent implements OnInit {
     }
   }
 
-  loadMemoryRecent(): void {
-    if (!this.session?.idcompany) {
+  /** Same fields as dashboard `historyScopeStable`, plus insights `erpModule` in the key. */
+  private historyScopeStable(): string {
+    if (!this.session) {
+      return 'anonymous';
+    }
+    return [
+      this.session.idcompany ?? 'no_company',
+      this.session.userid || this.session.token_payload?.userid || 'no_userid',
+      this.session.username || 'no_username'
+    ].join('_');
+  }
+
+  private historyKey(): string {
+    return `copilotPromptHistory_${this.historyScopeStable()}_${this.erpModule}`;
+  }
+
+  private loadHistory(): void {
+    if (!this.session || this.erpModule === 'reports') {
+      this.historyEntries = [];
       return;
     }
-    this.memoryLoading = true;
-    const uid =
-      this.session.userid != null ? String(this.session.userid) : this.session.token_payload?.userid;
-    this.api
-      .v3MemoryRecent({
-        idcompany: Number(this.session.idcompany),
-        access_token: this.session.access_token,
-        copilot: this.copilotForModule(),
-        user_id: uid != null ? String(uid) : undefined,
-        limit: 10
-      })
-      .subscribe({
-        next: (res) => {
-          this.memoryItems = res.items || [];
-          this.memoryLoading = false;
-        },
-        error: () => {
-          this.memoryItems = [];
-          this.memoryLoading = false;
-        }
-      });
+    try {
+      const raw = localStorage.getItem(this.historyKey());
+      if (!raw) {
+        this.historyEntries = [];
+        return;
+      }
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        this.historyEntries = [];
+        return;
+      }
+      const first = parsed[0];
+      if (typeof first === 'string') {
+        this.historyEntries = (parsed as string[]).map((p) => ({ prompt: p, at: '' }));
+        return;
+      }
+      this.historyEntries = parsed as InsightsHistoryEntry[];
+    } catch {
+      this.historyEntries = [];
+    }
+  }
+
+  private saveHistory(prompt: string): void {
+    if (!this.session || this.erpModule === 'reports') {
+      return;
+    }
+    const at = new Date().toISOString();
+    const entry: InsightsHistoryEntry = { prompt, at };
+    const next = [entry, ...this.historyEntries.filter((e) => e.prompt !== prompt)].slice(0, 10);
+    this.historyEntries = next;
+    try {
+      localStorage.setItem(this.historyKey(), JSON.stringify(next));
+    } catch {
+      /* quota */
+    }
+  }
+
+  /** mm/dd/yyyy HH:mm:ss (local time). */
+  formatHistoryDate(iso: string): string {
+    if (!iso?.trim()) {
+      return '';
+    }
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) {
+      return '';
+    }
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${mm}/${dd}/${yyyy} ${hh}:${min}:${ss}`;
+  }
+
+  toggleInsightsTheme(): void {
+    this.insightsTheme = this.insightsTheme === 'light' ? 'dark' : 'light';
   }
 
   loadReportSuggestions(): void {
@@ -239,6 +296,7 @@ export class ModuleInsightsPanelComponent implements OnInit {
     this.loading = true;
     this.error = null;
     this.response = null;
+    this.saveHistory(this.question.trim());
     const uid =
       this.session.userid != null ? String(this.session.userid) : this.session.token_payload?.userid;
     this.api
@@ -257,7 +315,6 @@ export class ModuleInsightsPanelComponent implements OnInit {
         next: (res) => {
           this.response = res;
           this.loading = false;
-          this.loadMemoryRecent();
         },
         error: (err: HttpErrorResponse) => {
           this.loading = false;

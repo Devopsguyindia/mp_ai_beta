@@ -37,6 +37,115 @@ def _prepare_sql_for_parsing(sql: str) -> str:
     return re.sub(r"%\([a-zA-Z_][a-zA-Z0-9_]*\)s", "1", sql)
 
 
+def _skip_quoted(s: str, i: int) -> int:
+    """Advance past a SQL single/double/backtick-quoted segment starting at index i."""
+    q = s[i]
+    if q not in ("'", '"', "`"):
+        return i + 1
+    i += 1
+    if q == "`":
+        while i < len(s):
+            if s[i] == "`":
+                if i + 1 < len(s) and s[i + 1] == "`":
+                    i += 2
+                else:
+                    return i + 1
+            i += 1
+        return len(s)
+    if q == "'":
+        while i < len(s):
+            if s[i] == "'":
+                if i + 1 < len(s) and s[i + 1] == "'":
+                    i += 2
+                else:
+                    return i + 1
+            i += 1
+        return len(s)
+    while i < len(s):
+        if s[i] == "\\":
+            i += 2
+            continue
+        if s[i] == '"':
+            return i + 1
+        i += 1
+    return len(s)
+
+
+def _match_paren(s: str, open_idx: int) -> int | None:
+    """Return index of the closing ')' matching '(' at open_idx, or None."""
+    if open_idx >= len(s) or s[open_idx] != "(":
+        return None
+    depth = 0
+    i = open_idx
+    while i < len(s):
+        c = s[i]
+        if c in ("'", '"', "`"):
+            i = _skip_quoted(s, i)
+            continue
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def _split_top_level_commas(s: str) -> list[str]:
+    """Split on commas not inside parentheses or quotes."""
+    parts: list[str] = []
+    buf_start = 0
+    depth = 0
+    i = 0
+    while i < len(s):
+        c = s[i]
+        if c in ("'", '"', "`"):
+            i = _skip_quoted(s, i)
+            continue
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+        elif c == "," and depth == 0:
+            parts.append(s[buf_start:i].strip())
+            buf_start = i + 1
+        i += 1
+    parts.append(s[buf_start:].strip())
+    return parts
+
+
+def rewrite_regexp_like_for_mysql_compat(sql: str) -> str:
+    """
+    REGEXP_LIKE(expr, pat[, match_mode]) exists in MySQL 8.0.4+.
+    Older MySQL / MariaDB reject it (Error 1305). Rewrite to (expr) REGEXP (pat).
+    Optional third argument (match mode) is dropped for compatibility.
+    """
+    if "REGEXP_LIKE" not in sql.upper():
+        return sql
+    out: list[str] = []
+    last = 0
+    for m in re.finditer(r"\bREGEXP_LIKE\s*\(", sql, re.IGNORECASE):
+        start = m.start()
+        open_paren = m.end() - 1
+        if start > last:
+            out.append(sql[last:start])
+        close_paren = _match_paren(sql, open_paren)
+        if close_paren is None:
+            out.append(sql[start:])
+            return "".join(out)
+        inner = sql[open_paren + 1 : close_paren]
+        args = _split_top_level_commas(inner)
+        if len(args) >= 2:
+            expr, pat = args[0].strip(), args[1].strip()
+            out.append(f"({expr}) REGEXP ({pat})")
+        else:
+            out.append(sql[start : close_paren + 1])
+        last = close_paren + 1
+    out.append(sql[last:])
+    return "".join(out)
+
+
 def restore_idcompany_placeholder_after_sqlglot(original_sql: str, transformed_sql: str) -> str:
     """
     After sqlglot parse/emit, driver placeholders were stubbed as literal 1 for parsing.
@@ -67,7 +176,7 @@ def restore_idcompany_placeholder_after_sqlglot(original_sql: str, transformed_s
 
 def validate_select_sql(*, sql: str, required_idcompany_param: str = "idcompany") -> GuardrailResult:
     violations: list[GuardrailViolation] = []
-    raw = sql.strip().rstrip(";")
+    raw = rewrite_regexp_like_for_mysql_compat(sql.strip().rstrip(";"))
     parseable_sql = _prepare_sql_for_parsing(raw)
 
     # 1) Parse and ensure single statement
@@ -128,6 +237,8 @@ def validate_select_sql(*, sql: str, required_idcompany_param: str = "idcompany"
     try:
         normalized_sql = expr.sql(dialect="mysql")
         normalized_sql = restore_idcompany_placeholder_after_sqlglot(raw, normalized_sql)
+        # sqlglot may emit REGEXP_LIKE for MySQL; re-apply compat rewrite for execution on older servers.
+        normalized_sql = rewrite_regexp_like_for_mysql_compat(normalized_sql)
     except Exception:
         normalized_sql = raw
 

@@ -1,8 +1,9 @@
+$mi-blue: #0056ca;
+
 .miOverlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(5, 8, 14, 0.92);
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -10,18 +11,75 @@
   box-sizing: border-box;
 }
 
+.miOverlay--light {
+  background: rgba(248, 250, 252, 0.94);
+}
+
+.miOverlay--dark {
+  background: rgba(5, 8, 14, 0.92);
+}
+
 .miPanel {
   width: min(960px, 100%);
   max-height: 100%;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #121826 0%, #0b0e14 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid $mi-blue;
   border-radius: 16px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
-  color: #e7ebf3;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   overflow: hidden;
+}
+
+.miPanel--light {
+  --mi-text: #0f172a;
+  --mi-text-soft: rgba(15, 23, 42, 0.78);
+  --mi-text-muted: rgba(15, 23, 42, 0.55);
+  --mi-accent-cyan: #0891b2;
+  --mi-accent-amber: #d4a84b;
+  --mi-heading-cyan: #0e7490;
+  --mi-bg: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  --mi-surface: rgba(0, 86, 202, 0.06);
+  --mi-surface-strong: rgba(0, 86, 202, 0.1);
+  --mi-border-inner: rgba(0, 86, 202, 0.25);
+  --mi-tab-inactive: rgba(15, 23, 42, 0.55);
+  --mi-tab-active-bg: rgba(0, 86, 202, 0.12);
+  --mi-input-bg: #ffffff;
+  --mi-input-border: rgba(0, 86, 202, 0.35);
+  --mi-pre-bg: rgba(15, 23, 42, 0.04);
+  --mi-table-head: rgba(0, 86, 202, 0.08);
+  --mi-shadow: 0 24px 80px rgba(0, 86, 202, 0.12);
+  --mi-error: #b91c1c;
+  --mi-donut-hole: #f1f5f9;
+
+  background: var(--mi-bg);
+  box-shadow: var(--mi-shadow);
+  color: var(--mi-text);
+}
+
+.miPanel--dark {
+  --mi-text: #e7ebf3;
+  --mi-text-soft: rgba(231, 235, 243, 0.85);
+  --mi-text-muted: rgba(231, 235, 243, 0.55);
+  --mi-accent-cyan: #22d3ee;
+  --mi-accent-amber: #fbbf24;
+  --mi-heading-cyan: #67e8f9;
+  --mi-bg: linear-gradient(180deg, #121826 0%, #0b0e14 100%);
+  --mi-surface: rgba(255, 255, 255, 0.05);
+  --mi-surface-strong: rgba(255, 255, 255, 0.08);
+  --mi-border-inner: rgba(255, 255, 255, 0.1);
+  --mi-tab-inactive: rgba(231, 235, 243, 0.65);
+  --mi-tab-active-bg: rgba(124, 92, 255, 0.18);
+  --mi-input-bg: rgba(0, 0, 0, 0.35);
+  --mi-input-border: rgba(255, 255, 255, 0.12);
+  --mi-pre-bg: rgba(0, 0, 0, 0.35);
+  --mi-table-head: rgba(0, 0, 0, 0.25);
+  --mi-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  --mi-error: #fca5a5;
+  --mi-donut-hole: #121826;
+
+  background: var(--mi-bg);
+  box-shadow: var(--mi-shadow);
+  color: var(--mi-text);
 }
 
 .miHeader {
@@ -30,43 +88,73 @@
   justify-content: space-between;
   gap: 12px;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid $mi-blue;
+}
+
+.miTitleRow {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .miTitle {
   font-size: 18px;
   font-weight: 700;
+  color: var(--mi-heading-cyan);
 }
 
-.miSub {
-  font-size: 12px;
-  opacity: 0.75;
-  margin-top: 4px;
+.miBetaBadge {
+  display: inline-block;
+  background: #2563eb;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.miHeaderActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.miThemeToggle {
+  border: 1px solid $mi-blue;
+  background: var(--mi-surface);
+  color: var(--mi-text);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.miThemeToggle:hover {
+  background: var(--mi-surface-strong);
 }
 
 .miClose {
-  border: 0;
-  background: rgba(255, 255, 255, 0.08);
-  color: #e7ebf3;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
+  display: none;
 }
 
 .miTabs {
   display: flex;
   gap: 4px;
   padding: 10px 16px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid $mi-blue;
 }
 
 .miTabs button {
-  border: 0;
+  border: 1px solid $mi-blue;
+  border-bottom: none;
   background: transparent;
-  color: rgba(231, 235, 243, 0.65);
+  color: var(--mi-tab-inactive);
   padding: 10px 14px;
   border-radius: 10px 10px 0 0;
   cursor: pointer;
@@ -74,17 +162,23 @@
 }
 
 .miTabs button.active {
-  background: rgba(124, 92, 255, 0.18);
-  color: #e7ebf3;
+  background: var(--mi-tab-active-bg);
+  color: var(--mi-text);
+  border-bottom: 1px solid transparent;
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
 }
 
 .miToolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  padding: 10px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 10px 0 14px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--mi-border-inner);
   font-size: 13px;
+  color: var(--mi-text-soft);
 }
 
 .miCheck {
@@ -92,7 +186,6 @@
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  opacity: 0.95;
 }
 
 .miBody {
@@ -109,8 +202,8 @@
 }
 
 .miCard {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--mi-surface);
+  border: 1px solid $mi-blue;
   border-radius: 12px;
   padding: 10px 12px;
 }
@@ -118,20 +211,27 @@
 .miCardLabel {
   display: block;
   font-size: 11px;
-  opacity: 0.7;
+  color: var(--mi-accent-cyan);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  font-weight: 600;
 }
 
 .miCardVal {
   font-size: 14px;
   font-weight: 600;
+  color: var(--mi-text);
   word-break: break-word;
+}
+
+.miPrompts {
+  margin-bottom: 14px;
 }
 
 .miPromptsTitle {
   font-size: 12px;
-  opacity: 0.8;
+  font-weight: 600;
+  color: var(--mi-heading-cyan);
   margin-bottom: 8px;
 }
 
@@ -142,9 +242,9 @@
 }
 
 .miChip {
-  border: 1px solid rgba(124, 92, 255, 0.35);
-  background: rgba(124, 92, 255, 0.12);
-  color: #e7ebf3;
+  border: 1px solid $mi-blue;
+  background: var(--mi-surface);
+  color: var(--mi-text);
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 12px;
@@ -153,7 +253,7 @@
 }
 
 .miChip:hover {
-  background: rgba(124, 92, 255, 0.22);
+  background: var(--mi-surface-strong);
 }
 
 .miPhase2 {
@@ -164,20 +264,21 @@
   margin: 14px 0;
   padding: 10px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  background: var(--mi-surface);
+  border: 1px dashed var(--mi-border-inner);
 }
 
 .miPhase2Label {
   font-size: 12px;
-  opacity: 0.75;
+  color: var(--mi-accent-amber);
+  font-weight: 600;
   margin-right: 8px;
 }
 
 .miPhase2Btn {
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(0, 0, 0, 0.25);
-  color: rgba(231, 235, 243, 0.45);
+  border: 1px solid var(--mi-border-inner);
+  background: var(--mi-surface-strong);
+  color: var(--mi-text-muted);
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 12px;
@@ -191,14 +292,17 @@
 .miMsg {
   padding: 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--mi-surface);
+  border: 1px solid var(--mi-border-inner);
   font-size: 14px;
   line-height: 1.45;
+  color: var(--mi-text-soft);
 }
 
 .miMsg.blocked {
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--mi-text);
 }
 
 .miInsights {
@@ -214,6 +318,15 @@
   gap: 4px;
 }
 
+.miInsightTitle {
+  color: var(--mi-heading-cyan);
+  font-weight: 700;
+}
+
+.miInsightText {
+  color: var(--mi-text-soft);
+}
+
 .miChartBlock,
 .miDonutBlock {
   margin: 16px 0;
@@ -221,8 +334,9 @@
 
 .miChartTitle {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 8px;
+  color: var(--mi-accent-cyan);
 }
 
 .miBarWrap {
@@ -240,7 +354,7 @@
 }
 
 .miBarLabel {
-  opacity: 0.85;
+  color: var(--mi-text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -248,20 +362,20 @@
 
 .miBarTrack {
   height: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--mi-surface-strong);
   border-radius: 999px;
   overflow: hidden;
 }
 
 .miBarFill {
   height: 100%;
-  background: linear-gradient(90deg, #7c5cff, #5b8cff);
+  background: linear-gradient(90deg, #0056ca, #3b82f6);
   border-radius: 999px;
 }
 
 .miBarVal {
   font-variant-numeric: tabular-nums;
-  opacity: 0.9;
+  color: var(--mi-text-soft);
 }
 
 .miDonutRow {
@@ -275,7 +389,7 @@
   width: 160px;
   height: 160px;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 28px #121826;
+  box-shadow: inset 0 0 0 28px var(--mi-donut-hole);
 }
 
 .miDonutLegend {
@@ -285,6 +399,7 @@
   font-size: 12px;
   display: grid;
   gap: 6px;
+  color: var(--mi-text-soft);
 }
 
 .miSwatch {
@@ -300,7 +415,7 @@
   max-height: 280px;
   margin: 12px 0;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid $mi-blue;
 }
 
 .miTable {
@@ -312,28 +427,31 @@
 .miTable th,
 .miTable td {
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--mi-border-inner);
   text-align: left;
+  color: var(--mi-text-soft);
 }
 
 .miTable th {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--mi-table-head);
   position: sticky;
   top: 0;
+  color: var(--mi-heading-cyan);
+  font-weight: 700;
 }
 
 .miInputRow {
   display: flex;
   gap: 10px;
-  margin-top: 16px;
+  margin-bottom: 16px;
 }
 
 .miInputRow input {
   flex: 1;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.35);
-  color: #e7ebf3;
+  border: 1px solid var(--mi-input-border);
+  background: var(--mi-input-bg);
+  color: var(--mi-text);
   padding: 12px 14px;
   font-size: 14px;
 }
@@ -342,8 +460,8 @@
   border: 0;
   border-radius: 12px;
   padding: 12px 20px;
-  background: #7c5cff;
-  color: #0b0e14;
+  background: #0056ca;
+  color: #ffffff;
   font-weight: 700;
   cursor: pointer;
 }
@@ -354,7 +472,7 @@
 }
 
 .miError {
-  color: #fca5a5;
+  color: var(--mi-error);
   font-size: 13px;
   margin: 8px 0;
 }
@@ -363,7 +481,16 @@
 .miEmpty,
 .miHint {
   font-size: 13px;
-  opacity: 0.8;
+  color: var(--mi-text-muted);
+}
+
+.miHint {
+  color: var(--mi-accent-cyan);
+  font-weight: 600;
+}
+
+.miHint strong {
+  font-weight: 700;
 }
 
 .miHistory .miHistList {
@@ -377,9 +504,9 @@
 .miHistBtn {
   text-align: left;
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  color: #e7ebf3;
+  border: 1px solid $mi-blue;
+  background: var(--mi-surface);
+  color: var(--mi-text);
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
@@ -389,32 +516,38 @@
 .miHistMeta {
   display: block;
   font-size: 11px;
-  opacity: 0.55;
+  color: var(--mi-text-muted);
   margin-top: 4px;
 }
 
 .miAccordion details {
   margin-top: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid $mi-blue;
   border-radius: 12px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--mi-surface);
 }
 
-.miAccordion summary {
+.miAccordionSummary {
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 13px;
+  color: var(--mi-heading-cyan);
 }
 
 .miPre {
   font-size: 11px;
   overflow: auto;
   max-height: 360px;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--mi-pre-bg);
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--mi-border-inner);
+  color: var(--mi-text-soft);
+}
+
+.miDetails > p {
+  color: var(--mi-text-muted);
 }
 
 .miReportToolbar {
@@ -423,20 +556,23 @@
   gap: 8px;
   margin-bottom: 12px;
   font-size: 13px;
+  color: var(--mi-text-soft);
 }
 
 .miReportToolbar button {
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(0, 0, 0, 0.25);
-  color: #e7ebf3;
+  border: 1px solid $mi-blue;
+  background: var(--mi-surface);
+  color: var(--mi-text);
   border-radius: 8px;
   padding: 6px 12px;
   cursor: pointer;
 }
 
 .miReportToolbar button.on {
-  background: rgba(124, 92, 255, 0.25);
-  border-color: rgba(124, 92, 255, 0.45);
+  background: rgba(0, 86, 202, 0.15);
+  border-color: $mi-blue;
+  color: var(--mi-heading-cyan);
+  font-weight: 600;
 }
 
 .miReportGrid {
@@ -445,10 +581,11 @@
   gap: 16px;
 }
 
-.miReportCol h3 {
+.miSectionHeading {
   font-size: 13px;
   margin: 0 0 8px;
-  opacity: 0.85;
+  color: var(--mi-heading-cyan);
+  font-weight: 700;
 }
 
 .miReportCol ol,
@@ -456,23 +593,24 @@
   margin: 0;
   padding-left: 18px;
   font-size: 12px;
+  color: var(--mi-text-soft);
 }
 
 .miRank {
   font-weight: 700;
   margin-right: 6px;
-  opacity: 0.75;
+  color: var(--mi-accent-amber);
 }
 
 .miMeta {
-  opacity: 0.65;
+  color: var(--mi-text-muted);
   font-size: 11px;
 }
 
 .miLink {
   background: none;
   border: 0;
-  color: #a5b4fc;
+  color: var(--mi-accent-cyan);
   cursor: pointer;
   text-decoration: underline;
   padding: 0;

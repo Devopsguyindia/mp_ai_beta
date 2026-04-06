@@ -1,32 +1,40 @@
-<div class="miOverlay">
-  <div class="miPanel">
+<div
+  class="miOverlay"
+  [class.miOverlay--light]="insightsTheme === 'light'"
+  [class.miOverlay--dark]="insightsTheme === 'dark'"
+>
+  <div
+    class="miPanel"
+    [class.miPanel--light]="insightsTheme === 'light'"
+    [class.miPanel--dark]="insightsTheme === 'dark'"
+  >
     <header class="miHeader">
-      <div>
-        <div class="miTitle">{{ title }}</div>
-        <div class="miSub">Read-only insights (Phase 1). Actions coming in Phase 2.</div>
+      <div class="miTitleRow">
+        <span class="miTitle">{{ title }}</span>
+        <span class="miBetaBadge" aria-label="Beta">BETA</span>
       </div>
-      <button type="button" class="miClose" (click)="close()" aria-label="Close">✕</button>
+      <div class="miHeaderActions">
+        <button
+          type="button"
+          class="miThemeToggle"
+          (click)="toggleInsightsTheme()"
+          [attr.aria-pressed]="insightsTheme === 'dark'"
+          [title]="insightsTheme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'"
+        >
+          {{ insightsTheme === 'light' ? 'Dark' : 'Light' }}
+        </button>
+        <button type="button" class="miClose" (click)="close()" aria-label="Close">✕</button>
+      </div>
     </header>
 
     <nav class="miTabs" *ngIf="erpModule !== 'reports'">
       <button type="button" [class.active]="activeTab === 'chat'" (click)="activeTab = 'chat'">Chat</button>
-      <button type="button" [class.active]="activeTab === 'history'" (click)="activeTab = 'history'">Suggestions &amp; history</button>
+      <button type="button" [class.active]="activeTab === 'history'" (click)="activeTab = 'history'">History</button>
       <button type="button" [class.active]="activeTab === 'details'" (click)="activeTab = 'details'">Details</button>
     </nav>
     <nav class="miTabs" *ngIf="erpModule === 'reports'">
       <button type="button" [class.active]="activeTab === 'reports'" (click)="activeTab = 'reports'">Report usage insights</button>
     </nav>
-
-    <div class="miToolbar">
-      <label class="miCheck" *ngIf="erpModule !== 'reports'">
-        <input type="checkbox" [(ngModel)]="showDebug" />
-        <span>Show work (debug)</span>
-      </label>
-      <label class="miCheck" *ngIf="erpModule !== 'reports'">
-        <input type="checkbox" [(ngModel)]="displayChart" />
-        <span>Display chart output</span>
-      </label>
-    </div>
 
     <!-- Reports module -->
     <section class="miBody" *ngIf="erpModule === 'reports' && activeTab === 'reports'">
@@ -41,7 +49,7 @@
 
       <div class="miReportGrid" *ngIf="reportSuggestions && !reportInsightsEmpty()">
         <div class="miReportCol">
-          <h3>Top reports</h3>
+          <h3 class="miSectionHeading">Top reports</h3>
           <ol>
             <li *ngFor="let t of reportSuggestions.top_reports; let i = index">
               <span class="miRank">{{ i + 1 }}</span>
@@ -51,7 +59,7 @@
           </ol>
         </div>
         <div class="miReportCol">
-          <h3>Recent runs</h3>
+          <h3 class="miSectionHeading">Recent runs</h3>
           <ul>
             <li *ngFor="let r of reportSuggestions.recent_runs">
               <button
@@ -66,7 +74,7 @@
           </ul>
         </div>
         <div class="miReportCol">
-          <h3>Smart defaults</h3>
+          <h3 class="miSectionHeading">Smart defaults</h3>
           <ul>
             <li *ngFor="let s of reportSuggestions.smart_defaults">
               <button
@@ -86,10 +94,22 @@
 
     <!-- Chat tab -->
     <section class="miBody" *ngIf="erpModule !== 'reports' && activeTab === 'chat'">
-      <div class="miCards">
-        <div class="miCard"><span class="miCardLabel">Rows</span><span class="miCardVal">{{ rowsCardValue }}</span></div>
-        <div class="miCard"><span class="miCardLabel">Generation</span><span class="miCardVal">{{ generationCardValue }}</span></div>
-        <div class="miCard"><span class="miCardLabel">Intent</span><span class="miCardVal">{{ intentLabel }}</span></div>
+      <div class="miToolbar">
+        <label class="miCheck">
+          <input type="checkbox" [(ngModel)]="showDebug" />
+          <span>Show work (debug)</span>
+        </label>
+        <label class="miCheck">
+          <input type="checkbox" [(ngModel)]="displayChart" />
+          <span>Display chart output</span>
+        </label>
+      </div>
+
+      <div class="miInputRow">
+        <input [(ngModel)]="question" placeholder="Ask about this module…" (keyup.enter)="submit()" />
+        <button type="button" (click)="submit()" [disabled]="loading || !question.trim()">
+          {{ loading ? 'Thinking..' : 'Ask' }}
+        </button>
       </div>
 
       <div class="miPrompts">
@@ -102,7 +122,12 @@
       <div class="miPhase2">
         <span class="miPhase2Label">Suggested actions (Phase 2)</span>
         <button type="button" class="miPhase2Btn" disabled [title]="phase2Hint">Export list</button>
-        <button type="button" class="miPhase2Btn" disabled [title]="phase2Hint">Open in grid</button>
+      </div>
+
+      <div class="miCards">
+        <div class="miCard"><span class="miCardLabel">Rows</span><span class="miCardVal">{{ rowsCardValue }}</span></div>
+        <div class="miCard"><span class="miCardLabel">Generation</span><span class="miCardVal">{{ generationCardValue }}</span></div>
+        <div class="miCard"><span class="miCardLabel">Intent</span><span class="miCardVal">{{ intentLabel }}</span></div>
       </div>
 
       <div class="miMessages" *ngIf="response">
@@ -111,8 +136,8 @@
         </div>
         <div class="miInsights" *ngIf="response.insights?.length">
           <div class="miInsight" *ngFor="let ins of response.insights">
-            <strong>{{ ins.title }}</strong>
-            <span>{{ ins.detail }}</span>
+            <strong class="miInsightTitle">{{ ins.title }}</strong>
+            <span class="miInsightText">{{ ins.detail }}</span>
           </div>
         </div>
       </div>
@@ -159,32 +184,24 @@
       </div>
 
       <div class="miError" *ngIf="error">{{ error }}</div>
-
-      <div class="miInputRow">
-        <input [(ngModel)]="question" placeholder="Ask about this module…" (keyup.enter)="submit()" />
-        <button type="button" (click)="submit()" [disabled]="loading || !question.trim()">
-          {{ loading ? '…' : 'Ask' }}
-        </button>
-      </div>
     </section>
 
     <!-- History tab -->
     <section class="miBody miHistory" *ngIf="erpModule !== 'reports' && activeTab === 'history'">
-      <p class="miHint">Last 10 questions for this module (server memory).</p>
-      <div class="miLoading" *ngIf="memoryLoading">Loading…</div>
+      <p class="miHint"><strong>Last 10 questions for this module (server memory).</strong></p>
       <ul class="miHistList">
-        <li *ngFor="let m of memoryItems">
-          <button type="button" class="miHistBtn" (click)="question = (m.question || ''); activeTab = 'chat'">
-            {{ m.question }}
+        <li *ngFor="let h of historyEntries">
+          <button type="button" class="miHistBtn" (click)="question = (h.prompt || ''); activeTab = 'chat'">
+            {{ h.prompt }}
           </button>
-          <span class="miHistMeta">{{ m.created_at }}</span>
+          <span class="miHistMeta">{{ formatHistoryDate(h.at) || '—' }}</span>
         </li>
       </ul>
-      <div class="miEmpty" *ngIf="!memoryLoading && !memoryItems.length">No history yet.</div>
+      <div class="miEmpty" *ngIf="!historyEntries.length">No history yet.</div>
 
       <div class="miAccordion">
         <details open>
-          <summary>AI suggested prompts (up to 5)</summary>
+          <summary class="miAccordionSummary">AI suggested prompts (up to 5)</summary>
           <div class="miChips">
             <button type="button" class="miChip" *ngFor="let p of staticPromptsForModule().slice(0, 5)" (click)="usePrompt(p)">
               {{ p }}
@@ -198,7 +215,7 @@
     <section class="miBody miDetails" *ngIf="erpModule !== 'reports' && activeTab === 'details'">
       <div class="miEmpty" *ngIf="!response">Run a question in the Chat tab to see SQL and debug info.</div>
       <pre class="miPre" *ngIf="response?.debug && showDebug">{{ response.debug | json }}</pre>
-      <p *ngIf="response && !showDebug">Enable “Show work (debug)” to see details.</p>
+      <p *ngIf="response && !showDebug">Enable “Show work (debug)” in the Chat tab to see details.</p>
     </section>
   </div>
 </div>
