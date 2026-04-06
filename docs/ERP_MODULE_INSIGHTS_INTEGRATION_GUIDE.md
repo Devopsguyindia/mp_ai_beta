@@ -123,7 +123,8 @@ iframe.addEventListener('load', () => {
       type: 'copilot-auth',
       access_token: '<JWT>',
       idcompany: 12345,
-      user_id: '<optional>'
+      user_id: '<optional>',
+      redirect_to: '/module-insights/contact' // optional: route after auth if iframe landed on /login
     },
     'https://copilot.example.com'  // exact child origin
   );
@@ -134,16 +135,22 @@ iframe.addEventListener('load', () => {
 
 ### Step B3 — Child (widget) responsibilities
 
-The stock widget **today** reads **`localStorage` only**; it does **not** yet ship a global `postMessage` listener that writes `copilotSession`. For iframe-only integration you have two options:
+The widget registers a **`window` `message` listener** only when **`parentOriginsAllowlist`** is non-empty in [`copilot-widget-v3/src/environments/environment.ts`](copilot-widget-v3/src/environments/environment.ts) (and `environment.prod.ts` for production builds).
 
-- **Short term:** Serve a **thin wrapper page on the same origin as the widget** that sets `localStorage` from `postMessage` then redirects into `/#/module-insights/...`, or add a small listener in `main.ts` / `AppComponent` (recommended follow-up in this repo).
-- **Same-tab redirect:** Redirect the user to the copilot origin with a **server-issued one-time exchange** (not implemented in this repo by default) — only if your security team approves.
+1. **Enable the listener:** Set `parentOriginsAllowlist` in `environment.ts` / `environment.prod.ts` to the **exact ERP page origins** that may embed the iframe (scheme + host + port, no trailing slash). This must be the **parent** page’s origin (the URL in the browser address bar on the ERP app), **not** the CloudFront/widget URL. To confirm: on the ERP page, run `window.location.origin` in DevTools.  
+   If the array is **empty**, **no listener is registered** — `postMessage` is ignored and users see login again.
 
-Document the chosen approach in your ERP release notes.
+2. **Validation:** For each message, the app checks `event.origin` is in that allowlist, then requires `data.type === 'copilot-auth'`, `access_token`, and `idcompany`. It then writes the same `copilotSession` shape as login via `AuthService.applyEmbeddedSession` (JWT payload is decoded client-side for `token_payload` / display fields when possible).
+
+3. **Optional `redirect_to`:** If the iframe first loads a guarded route and Angular sends the user to `/#/login` before `postMessage` runs, pass `redirect_to` (Angular path, e.g. `/module-insights/contact`). After a successful handoff, the app navigates there instead of staying on login. If omitted while on login, navigation falls back to `/dashboard`.
+
+4. **Same-tab redirect / wrapper page:** Still valid alternatives if you prefer not to use the built-in listener.
+
+Document the chosen allowlist and ERP release notes in your deployment.
 
 ### Step B4 — Security checklist (iframe)
 
-- Validate `event.origin` in the child to only your ERP origins.
+- The widget validates **`event.origin`** against **`parentOriginsAllowlist`** (deny by default when the allowlist is empty).
 - Prefer **short-lived** tokens if your IdP allows scoped tokens for Copilot only.
 - Use **HTTPS** everywhere.
 
@@ -173,6 +180,7 @@ Document the chosen approach in your ERP release notes.
 | `401` / `403` from API | Wrong or expired JWT; `idcompany` mismatch with token. |
 | CORS errors | API `Access-Control-Allow-Origin` does not include ERP or widget origin. |
 | Blank iframe | Wrong `src` hash path; check `#/module-insights/...` spelling. |
+| Iframe always shows login (Path B) | `parentOriginsAllowlist` empty or missing your **ERP** origin; listener not registered or `postMessage` origin rejected. |
 
 ---
 

@@ -5,7 +5,7 @@ import re
 import sqlglot
 from sqlglot import exp
 
-from ..sql_guardrails import restore_idcompany_placeholder_after_sqlglot
+from ..sql_guardrails import restore_idcompany_placeholder_after_sqlglot, rewrite_regexp_like_for_mysql_compat
 
 from .rag.schema_index import load_schema_registry
 
@@ -263,4 +263,6 @@ def apply_registry_column_synonyms(sql: str) -> str:
         out = parsed.sql(dialect="mysql")
     except Exception:
         return sql
-    return restore_idcompany_placeholder_after_sqlglot(sql, out)
+    restored = restore_idcompany_placeholder_after_sqlglot(sql, out)
+    # sqlglot MySQL emit uses REGEXP_LIKE (8.0.4+); rewrite for older MySQL / MariaDB.
+    return rewrite_regexp_like_for_mysql_compat(restored)

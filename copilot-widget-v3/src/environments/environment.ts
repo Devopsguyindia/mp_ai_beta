@@ -6,7 +6,17 @@ export const environment = {
   production: false,
   copilotApiBaseUrl: 'http://localhost:8001',
   v3AskEnabled: true,
-  reportSuggestionsEnabled: true
+  reportSuggestionsEnabled: true,
+  /**
+   * ERP page origin(s) that may embed the widget iframe (Path B). Must match the browser
+   * address bar of the parent window exactly (scheme + host + port). Not the iframe/CloudFront URL.
+   */
+  parentOriginsAllowlist: [
+    'http://localhost:4200',
+    'http://127.0.0.1:4200',
+    'http://localhost:4300',
+    'http://127.0.0.1:4300'
+  ] as string[]
 };
 
 /*
