@@ -332,6 +332,25 @@ export class ModuleInsightsPanelComponent implements OnInit {
     this.router.navigate(['/dashboard']);
   }
 
+  /** Matches V3 default answer prefix; shown bold in insights Chat message only. */
+  readonly masterpieceResultsPrefix = 'Here are the results from Masterpiece data.';
+
+  get masterpieceAnswerPrefix(): string | null {
+    const a = this.response?.answer;
+    if (typeof a !== 'string') {
+      return null;
+    }
+    return a.startsWith(this.masterpieceResultsPrefix) ? this.masterpieceResultsPrefix : null;
+  }
+
+  get masterpieceAnswerRemainder(): string {
+    const a = this.response?.answer ?? '';
+    if (typeof a !== 'string' || !a.startsWith(this.masterpieceResultsPrefix)) {
+      return '';
+    }
+    return a.slice(this.masterpieceResultsPrefix.length);
+  }
+
   get intentLabel(): string {
     const d = this.response?.debug;
     return (d?.routed_intent || d?.matched_intent || 'n/a') as string;
