@@ -7,6 +7,8 @@ export const environment = {
   copilotApiBaseUrl: 'http://localhost:8001',
   v3AskEnabled: true,
   reportSuggestionsEnabled: true,
+  /** When false, /showcase/* routes redirect to dashboard; V3 and insights unchanged. */
+  showcaseEnabled: true,
   /**
    * ERP page origin(s) that may embed the widget iframe (Path B). Must match the browser
    * address bar of the parent window exactly (scheme + host + port). Not the iframe/CloudFront URL.

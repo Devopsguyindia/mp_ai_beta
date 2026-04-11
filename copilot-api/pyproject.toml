@@ -22,6 +22,9 @@ dependencies = [
 where = ["."]
 include = ["app*"]
 
+[tool.setuptools.package-data]
+"app.showcase" = ["data/*.json"]
+
 [tool.uvicorn]
 factory = false
 

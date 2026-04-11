@@ -1,0 +1,155 @@
+.showcase-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 3rem;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: #1a1a1a;
+}
+
+.showcase-header h1 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+
+.sub {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #555;
+  line-height: 1.45;
+}
+
+.hint,
+.empty,
+.error,
+.loading {
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  border-radius: 8px;
+  background: #f4f6f8;
+  border: 1px solid #e2e6ea;
+}
+
+.error {
+  background: #fff5f5;
+  border-color: #f3c6c6;
+  color: #8b1a1a;
+}
+
+.example {
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}
+
+.content {
+  margin-top: 1.5rem;
+}
+
+.meta h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.25rem;
+}
+
+.facets {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+.facets li {
+  margin: 0.2rem 0;
+}
+
+.presentation {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.pres-title {
+  font-size: 0.95rem;
+  margin: 0 0 0.35rem;
+}
+
+.pres-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.35rem 0 0;
+}
+
+.pres-list li {
+  margin: 0.2rem 0;
+}
+
+.small {
+  font-size: 0.82rem;
+}
+
+.muted {
+  color: #666;
+  font-size: 0.88rem;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.controls select {
+  min-width: 220px;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.preview {
+  position: relative;
+  margin-top: 1rem;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(145deg, #eef1f4 0%, #fafbfc 45%, #e8eaed 100%);
+  border: 1px solid #dde1e6;
+}
+
+.preview img {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  background: #fff;
+}
+
+.scene-badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 6px;
+  z-index: 1;
+}
+
+.caption {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.caption code {
+  font-size: 0.78rem;
+}

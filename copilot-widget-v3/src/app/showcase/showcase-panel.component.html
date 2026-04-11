@@ -1,0 +1,88 @@
+<div class="showcase-shell">
+  <header class="showcase-header">
+    <h1>Artwork showcase</h1>
+    <p class="sub">
+      Preview inventory images in context. Deep-link with query <code>itemId</code> (same session as AI Insights).
+    </p>
+  </header>
+
+  <section class="showcase-body" *ngIf="session">
+    <div class="hint" *ngIf="itemId == null">
+      <p>Add <strong>?itemId=</strong> with a <code>idcompany_item</code> value to load images from <code>company_item_pictures</code>.</p>
+      <p class="example">Example: <code>#/showcase/inventory?itemId=12345</code></p>
+    </div>
+
+    <div class="loading" *ngIf="itemId != null && loadingPictures">Loading pictures…</div>
+    <div class="error" *ngIf="error">{{ error }}</div>
+
+    <div class="content" *ngIf="itemId != null && picturesRes && !loadingPictures">
+      <div class="meta">
+        <h2 *ngIf="picturesRes.item_title">{{ picturesRes.item_title }}</h2>
+        <p class="muted">
+          Item #{{ picturesRes.idcompany_item }} · {{ picturesRes.pictures.length }} image(s)
+          <span *ngIf="picturesRes.pipeline_version"> · library {{ picturesRes.pipeline_version }}</span>
+        </p>
+        <ul class="facets muted" *ngIf="picturesRes.artist_display || picturesRes.edition_label || picturesRes.category_label || picturesRes.medium_label">
+          <li *ngIf="picturesRes.artist_display"><strong>Artist</strong> {{ picturesRes.artist_display }}</li>
+          <li *ngIf="picturesRes.edition_label"><strong>Edition</strong> {{ picturesRes.edition_label }}</li>
+          <li *ngIf="picturesRes.category_label"><strong>Category</strong> {{ picturesRes.category_label }}</li>
+          <li *ngIf="picturesRes.medium_label"><strong>Medium</strong> {{ picturesRes.medium_label }}</li>
+        </ul>
+      </div>
+
+      <div class="empty" *ngIf="picturesRes.pictures.length === 0">
+        <p>No images on file for this item. Upload pictures in the ERP, then refresh.</p>
+      </div>
+
+      <div class="presentation" *ngIf="options && picturesRes.pictures.length > 0">
+        <h3 class="pres-title">Presentation</h3>
+        <p class="muted small" *ngIf="options.presentation_source">
+          Suggested via <strong>{{ options.presentation_source }}</strong>
+          <span *ngIf="options.notes"> — {{ options.notes }}</span>
+        </p>
+        <ul class="pres-list muted small">
+          <li *ngIf="options.frame_style"><strong>Frame</strong> {{ options.frame_style }}</li>
+          <li *ngIf="options.lighting"><strong>Lighting</strong> {{ options.lighting }}</li>
+          <li *ngIf="options.placement"><strong>Placement</strong> {{ options.placement }}</li>
+        </ul>
+      </div>
+
+      <div class="controls" *ngIf="picturesRes.pictures.length > 0">
+        <label *ngIf="picturesRes.pictures.length > 1">
+          Image
+          <select
+            [ngModel]="selectedPictureId"
+            (ngModelChange)="onPictureChange($event)"
+          >
+            <option *ngFor="let p of picturesRes.pictures" [ngValue]="p.idcompany_item_pictures">
+              {{ p.picture }}<span *ngIf="p.is_primary"> (primary)</span>
+            </option>
+          </select>
+        </label>
+        <label *ngIf="scenes.length">
+          Scene
+          <select
+            [ngModel]="selectedSceneId"
+            (ngModelChange)="onSceneChange($event)"
+          >
+            <option *ngFor="let s of scenes" [ngValue]="s.scene_id">{{ s.label }}</option>
+          </select>
+        </label>
+      </div>
+
+      <p class="muted small" *ngIf="loadingOptions || loadingRender">Updating preview…</p>
+
+      <div class="preview" *ngIf="previewUrl">
+        <div class="scene-badge" *ngIf="selectedSceneLabel">{{ selectedSceneLabel }}</div>
+        <img [src]="previewUrl" alt="Selected artwork" />
+        <p class="caption muted">
+          <span *ngIf="renderRes?.output_mode === 'pass_through'">
+            Compositor pass-through — artwork URL is unchanged; <code>cache_key</code> is reserved for the future compositor
+            (<code *ngIf="renderRes?.cache_key as ck">{{ ck | slice:0:14 }}…</code>).
+          </span>
+          <span *ngIf="!renderRes">Scene label describes presentation context for this MVP.</span>
+        </p>
+      </div>
+    </div>
+  </section>
+</div>

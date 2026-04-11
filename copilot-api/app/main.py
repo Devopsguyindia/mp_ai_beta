@@ -68,6 +68,11 @@ app.add_middleware(
 
 app.include_router(report_suggestions_router)
 
+if os.getenv("SHOWCASE_ENABLED", "0") in {"1", "true", "TRUE", "yes", "YES"}:
+    from .showcase.router import router as showcase_router
+
+    app.include_router(showcase_router)
+
 
 class ChatRequest(BaseModel):
     idcompany: int = Field(..., ge=1, description="Tenant/company ID (gallery)")
