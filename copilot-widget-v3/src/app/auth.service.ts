@@ -32,7 +32,7 @@ export interface CopilotAuthPostMessage {
   access_token: string;
   idcompany: number;
   user_id?: string | null;
-  /** After session is applied, navigate here if the user is on /login (e.g. /module-insights/contact). */
+  /** After session is applied, navigate here if the user is on /login (e.g. /module-insights/contact or /showcase/inventory?itemId=…). */
   redirect_to?: string | null;
 }
 

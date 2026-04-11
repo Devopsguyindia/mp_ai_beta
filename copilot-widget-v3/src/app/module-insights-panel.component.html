@@ -132,7 +132,10 @@
 
       <div class="miMessages" *ngIf="response">
         <div class="miMsg" [class.blocked]="response.scope_blocked">
-          {{ response.answer }}
+          <ng-container *ngIf="masterpieceAnswerPrefix; else miAnswerPlain">
+            <strong class="miAnswerLead">{{ masterpieceAnswerPrefix }}</strong><span class="miAnswerRest">{{ masterpieceAnswerRemainder }}</span>
+          </ng-container>
+          <ng-template #miAnswerPlain>{{ response.answer }}</ng-template>
         </div>
         <div class="miInsights" *ngIf="response.insights?.length">
           <div class="miInsight" *ngFor="let ins of response.insights">

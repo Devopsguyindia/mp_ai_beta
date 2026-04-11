@@ -1,0 +1,38 @@
+{
+  "pipeline_version": "scene-lib-2026-03",
+  "notes": "Batch-generated scenes: replace preview_asset_url values after QA upload to S3. QA workflow is out-of-band; this file is the runtime manifest.",
+  "scenes": [
+    {
+      "scene_id": "gallery_white_wall",
+      "label": "Gallery — white wall",
+      "description": "Neutral wall lighting; good default for most two-dimensional work.",
+      "preview_asset_url": null,
+      "qa_status": "approved",
+      "tags": ["2d", "wall", "neutral"]
+    },
+    {
+      "scene_id": "residential_living_warm",
+      "label": "Residential — warm interior",
+      "description": "Warm ambient light; useful for client home visualization.",
+      "preview_asset_url": null,
+      "qa_status": "approved",
+      "tags": ["2d", "warm", "interior"]
+    },
+    {
+      "scene_id": "studio_natural_north",
+      "label": "Studio — natural north light",
+      "description": "Soft directional daylight reference.",
+      "preview_asset_url": null,
+      "qa_status": "approved",
+      "tags": ["2d", "daylight", "soft"]
+    },
+    {
+      "scene_id": "pedestal_sculpture_spot",
+      "label": "Plinth — sculpture spotlight",
+      "description": "Freestanding work; directional key for volume and material read.",
+      "preview_asset_url": null,
+      "qa_status": "approved",
+      "tags": ["3d", "sculpture", "pedestal"]
+    }
+  ]
+}

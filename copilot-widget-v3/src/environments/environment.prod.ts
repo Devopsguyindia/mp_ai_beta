@@ -6,6 +6,7 @@ export const environment = {
   copilotApiBaseUrl: 'https://copilot-api.mpstest.net',
   v3AskEnabled: true,
   reportSuggestionsEnabled: true,
+  showcaseEnabled: false,
   /**
    * ERP SPA origin(s) that embed the iframe — must match `event.origin` from the parent page
    * (not the CloudFront widget URL). Add/remove hosts to match your deployment.

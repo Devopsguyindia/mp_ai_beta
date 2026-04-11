@@ -3,7 +3,9 @@ import { RouterModule, Routes } from '@angular/router';
 import { LoginComponent } from './login.component';
 import { DashboardComponent } from './dashboard.component';
 import { ModuleInsightsPanelComponent } from './module-insights-panel.component';
+import { ShowcasePanelComponent } from './showcase/showcase-panel.component';
 import { AuthGuard } from './auth.guard';
+import { ShowcaseFeatureGuard } from './showcase/showcase-feature.guard';
 
 const routes: Routes = [
   { path: '', redirectTo: '/login', pathMatch: 'full' },
@@ -13,6 +15,11 @@ const routes: Routes = [
     path: 'module-insights/:erpModule',
     component: ModuleInsightsPanelComponent,
     canActivate: [AuthGuard]
+  },
+  {
+    path: 'showcase/inventory',
+    component: ShowcasePanelComponent,
+    canActivate: [AuthGuard, ShowcaseFeatureGuard],
   },
   { path: '**', redirectTo: '/login' }
 ];
