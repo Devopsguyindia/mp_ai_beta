@@ -9,7 +9,7 @@ Comparison to common “room preview / artwork mockup” products. This is a **p
 | CDN URL resolution | Yes (`company_item_pictures`) | Presigned private objects | Same |
 | Scene library | Manifest JSON + QA fields | S3 thumbnails per scene | User-upload room |
 | Presentation hints | Rules + optional LLM (`/showcase/options`) | Tune rules / prompts | Brand profiles |
-| Pixel compositing / relight | **No** (`pass_through` + `cache_key`) | Compositor service | GPU / vendor API |
+| Pixel compositing / relight | **Yes** (`SHOWCASE_COMPOSITOR_ENABLED`) — Pillow plate, frames, lighting, physical scale, optional rembg cutout | Tune presets | GPU / vendor API |
 | Share / magic link | Stub (`/showcase/share`) | Token + TTL | Watermark + CRM |
 | Packs / PDF export | No | Yes (planned) | White-label |
 | Analytics | No | Optional events | Gallery dashboards |
@@ -19,7 +19,8 @@ Comparison to common “room preview / artwork mockup” products. This is a **p
 | Phase | Deliverable |
 |--------|-------------|
 | **MVP** | Flags, `/showcase/*` APIs, manifest, options + render stub, widget shell, docs |
-| **V1** | Real compositor, share tokens, multi-output packs |
+| **Phase 1** | Eight room presets (`scene_library_manifest`), `POST /showcase/studio/analyze`, `POST /showcase/studio/batch-render`, extended `POST /showcase/render` (layout, cutout, physical cm), compositor frames/lighting/scale |
+| **V1** | Share tokens, multi-output packs |
 | **V2+** | Branding, analytics, custom rooms |
 
 ## Isolation

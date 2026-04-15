@@ -9,6 +9,16 @@ export const environment = {
   reportSuggestionsEnabled: true,
   /** When false, /showcase/* routes redirect to dashboard; V3 and insights unchanged. */
   showcaseEnabled: true,
+  /** Pass ?debug=1 on showcase picture/options/render calls and show debug panel in UI. */
+  showcasePicturesDebug: true,
+  /** Load preview images via GET /showcase/.../file (avoids browser CDN hotlink / referrer blocks). */
+  showcaseImageProxy: true,
+  /**
+   * When true, main preview uses the server PNG from POST /showcase/render (flat image).
+   * When false (recommended until compositor output is verified), preview stays on CSS “room”
+   * styling + the real artwork so the image does not swap to a broken composited plate.
+   */
+  showcaseClientCompositedPreview: true,
   /**
    * ERP page origin(s) that may embed the widget iframe (Path B). Must match the browser
    * address bar of the parent window exactly (scheme + host + port). Not the iframe/CloudFront URL.

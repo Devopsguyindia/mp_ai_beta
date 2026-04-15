@@ -54,13 +54,29 @@ def rule_based_recommendation(
         for t in ["sculpture", "bronze", "marble", "pedestal", "maquette", "installation", "3d", "glass "]
     )
     ranked: list[str] = []
+
+    def _style_boost(scene: SceneInfo) -> float:
+        interior = (scene.interior_style or "").lower()
+        score = 0.0
+        for word in interior.replace(",", " ").split():
+            w = word.strip()
+            if len(w) > 3 and w in blob:
+                score += 0.35
+        rc = (scene.room_category or "").lower()
+        if rc and rc in blob:
+            score += 0.2
+        return score
+
+    scored: list[tuple[float, str]] = []
     for s in scenes:
         tags = {t.lower() for t in (s.tags or [])}
+        pri = 0.0
         if want_3d and ("3d" in tags or "sculpture" in tags):
-            ranked.append(s.scene_id)
-    for s in scenes:
-        if s.scene_id not in ranked:
-            ranked.append(s.scene_id)
+            pri += 2.0
+        pri += _style_boost(s)
+        scored.append((pri, s.scene_id))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    ranked = [sid for _p, sid in scored]
 
     frame_style = "floater_modern" if "canvas" in blob or medium_is_canvas(edition_label) else "traditional_matted"
     lighting = "pedestal_spot" if want_3d else "gallery_track_wash"

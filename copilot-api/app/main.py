@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import re
 import time
 import uuid
@@ -19,7 +20,12 @@ from pydantic import BaseModel, Field
 from .llm_nl2sql import generate_query_with_llm
 from .nl2sql_engine import generate_query
 from .v3.rag.schema_index import build_schema_from_registry
-from .sql_guardrails import GuardrailResult, rewrite_regexp_like_for_mysql_compat, validate_select_sql
+from .sql_guardrails import (
+    GuardrailResult,
+    rewrite_redundant_qualified_open_paren,
+    rewrite_regexp_like_for_mysql_compat,
+    validate_select_sql,
+)
 from .sql_runner import QueryResult, run_select_query
 from .sql_user_messages import SQL_QUERY_USER_FRIENDLY_ANSWER
 from .v3.memory.log_store import get_recent_events_filtered
@@ -29,7 +35,9 @@ from .report_suggestions import router as report_suggestions_router
 from .auth_audit_store import append_auth_audit_event, client_ip_from_request_headers
 
 
-load_dotenv()
+# Load copilot-api/.env regardless of process cwd (uvicorn often run from repo root).
+_COPILOT_API_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_COPILOT_API_ROOT / ".env")
 
 app = FastAPI(title="Copilot API (V1, read-only)", version="0.1.0")
 
@@ -653,7 +661,8 @@ def chat(req: ChatRequest) -> ChatResponse:
     if not guard.ok:
         raise HTTPException(status_code=400, detail={"error": "sql_blocked", "guardrails": guard.model_dump()})
 
-    sql = rewrite_regexp_like_for_mysql_compat((guard.normalized_sql or sql).strip())
+    sql = rewrite_redundant_qualified_open_paren((guard.normalized_sql or sql).strip())
+    sql = rewrite_regexp_like_for_mysql_compat(sql)
 
     max_rows = int(os.getenv("MYSQL_MAX_ROWS", "200"))
     contract_ok, contract_guardrails = _validate_runtime_contract(
@@ -693,9 +702,10 @@ def chat(req: ChatRequest) -> ChatResponse:
                 repaired_params = {**repaired_query.params, "idcompany": resolved_idcompany}
                 repaired_guard = validate_select_sql(sql=repaired_sql, required_idcompany_param="idcompany")
                 if repaired_guard.ok:
-                    repaired_sql = rewrite_regexp_like_for_mysql_compat(
+                    repaired_sql = rewrite_redundant_qualified_open_paren(
                         (repaired_guard.normalized_sql or repaired_sql).strip()
                     )
+                    repaired_sql = rewrite_regexp_like_for_mysql_compat(repaired_sql)
                     repaired_contract_ok, repaired_contract_guard = _validate_runtime_contract(
                         sql=repaired_sql,
                         copilot=selected_copilot,

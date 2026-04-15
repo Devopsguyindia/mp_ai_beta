@@ -15,6 +15,14 @@ pip install -U pip
 pip install -e .
 ```
 
+For **Artwork showcase** compositor + optional **cutout** (rembg + ONNX runtime on CPU):
+
+```bash
+pip install -e ".[showcase]"
+```
+
+Then set `SHOWCASE_ENABLED=1`, `SHOWCASE_COMPOSITOR_ENABLED=1`, and optionally `SHOWCASE_CUTOUT_ENABLED=1` in `.env`.
+
 3) Run
 
 ```bash

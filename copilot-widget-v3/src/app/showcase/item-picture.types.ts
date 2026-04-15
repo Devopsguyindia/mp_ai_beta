@@ -23,6 +23,8 @@ export interface ShowcaseItemPicturesResponse {
   medium_label?: string | null;
   pipeline_version?: string | null;
   pictures: ShowcasePictureRow[];
+  /** Present when ?debug=1 or server SHOWCASE_DEBUG_LOG=1 */
+  debug?: Record<string, unknown> | null;
 }
 
 export interface ShowcaseSceneInfo {
@@ -32,6 +34,14 @@ export interface ShowcaseSceneInfo {
   preview_asset_url?: string | null;
   qa_status?: string | null;
   tags?: string[];
+  room_category?: string | null;
+  interior_style?: string | null;
+  placement_hint?: string | null;
+  layout_index?: number;
+  /** Normalized [left, top, right, bottom] on compositor canvas; art is placed inside this ROI. */
+  focal_wall_rect?: [number, number, number, number] | null;
+  /** Optional 4 corners [x,y] in [0,1], order TL, TR, BR, BL for perspective warp. */
+  placement_quad?: [number, number][] | null;
 }
 
 export interface ShowcaseScenesResponse {
@@ -51,9 +61,44 @@ export interface ShowcaseOptionsResponse {
   suitable_picture_ids: number[];
   presentation_source?: string | null;
   notes?: string | null;
+  debug?: Record<string, unknown> | null;
+}
+
+export interface ShowcaseStyleMatch {
+  scene_id: string;
+  label: string;
+  score: number;
+}
+
+export interface ShowcaseStudioAnalyzeResponse {
+  idcompany: number;
+  idcompany_item: number;
+  artwork_kind: string;
+  detected_placement: string;
+  frame_suggestions: string[];
+  lighting_suggestions: string[];
+  style_matches: ShowcaseStyleMatch[];
+  scene_ranking: string[];
+  notes?: string | null;
+  debug?: Record<string, unknown> | null;
+}
+
+export interface ShowcaseBatchRenderItem {
+  scene_id: string;
+  cache_key: string;
+  preview_url: string;
+  output_mode: string;
+  compositor_status: string;
+}
+
+export interface ShowcaseBatchRenderResponse {
+  pipeline_version: string;
+  items: ShowcaseBatchRenderItem[];
+  debug?: Record<string, unknown> | null;
 }
 
 export interface ShowcaseRenderResponse {
+  /** pass_through | composited */
   output_mode: string;
   pipeline_version: string;
   cache_key: string;
@@ -63,10 +108,18 @@ export interface ShowcaseRenderResponse {
   lighting?: string | null;
   placement?: string | null;
   compositor_status: string;
+  debug?: Record<string, unknown> | null;
 }
 
 export interface ShowcaseShareResponse {
   enabled: boolean;
   message: string;
   share_url?: string | null;
+}
+
+export interface ShowcaseSuggestionRender {
+  frame_style: string;
+  lighting: string;
+  preview_url: string;
+  output_mode: string;
 }

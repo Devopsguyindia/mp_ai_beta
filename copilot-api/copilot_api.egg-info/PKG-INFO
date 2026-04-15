@@ -10,3 +10,6 @@ Requires-Dist: sqlglot>=25.0
 Requires-Dist: mysql-connector-python>=9.0
 Requires-Dist: python-dotenv>=1.0
 Requires-Dist: openai>=1.52
+Requires-Dist: pillow>=10.0
+Provides-Extra: showcase
+Requires-Dist: rembg>=2.0.50; extra == "showcase"

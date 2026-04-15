@@ -15,7 +15,12 @@ dependencies = [
   "mysql-connector-python>=9.0",
   "python-dotenv>=1.0",
   "openai>=1.52",
+  "pillow>=10.0",
 ]
+
+[project.optional-dependencies]
+# Showcase Studio Phase 1 optional cutout (background removal). Large download (onnxruntime).
+showcase = ["rembg[cpu]>=2.0.50"]
 
 # Only ship the `app` package. `prompt_coverage/` is prompt data, not a Python package.
 [tool.setuptools.packages.find]
@@ -23,7 +28,7 @@ where = ["."]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-"app.showcase" = ["data/*.json"]
+"app.showcase" = ["data/*.json", "data/scene_backdrops/*.png"]
 
 [tool.uvicorn]
 factory = false

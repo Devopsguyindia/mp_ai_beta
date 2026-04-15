@@ -115,6 +115,18 @@ def _split_top_level_commas(s: str) -> list[str]:
     return parts
 
 
+def rewrite_redundant_qualified_open_paren(sql: str) -> str:
+    """
+    Repair LLM typo `alias.(alias.column ...)` → `(alias.column ...)` (MySQL 1064 near '(').
+    Example: WHERE cv.(cv.maximum_discount IS NULL ...) → WHERE (cv.maximum_discount IS NULL ...).
+    """
+    return re.sub(
+        r"\b([a-zA-Z_][a-zA-Z0-9_]*)\.\(\s*\1\.",
+        r"(\1.",
+        sql,
+    )
+
+
 def rewrite_regexp_like_for_mysql_compat(sql: str) -> str:
     """
     REGEXP_LIKE(expr, pat[, match_mode]) exists in MySQL 8.0.4+.
@@ -176,7 +188,8 @@ def restore_idcompany_placeholder_after_sqlglot(original_sql: str, transformed_s
 
 def validate_select_sql(*, sql: str, required_idcompany_param: str = "idcompany") -> GuardrailResult:
     violations: list[GuardrailViolation] = []
-    raw = rewrite_regexp_like_for_mysql_compat(sql.strip().rstrip(";"))
+    raw = rewrite_redundant_qualified_open_paren(sql.strip().rstrip(";"))
+    raw = rewrite_regexp_like_for_mysql_compat(raw)
     parseable_sql = _prepare_sql_for_parsing(raw)
 
     # 1) Parse and ensure single statement
@@ -237,6 +250,7 @@ def validate_select_sql(*, sql: str, required_idcompany_param: str = "idcompany"
     try:
         normalized_sql = expr.sql(dialect="mysql")
         normalized_sql = restore_idcompany_placeholder_after_sqlglot(raw, normalized_sql)
+        normalized_sql = rewrite_redundant_qualified_open_paren(normalized_sql)
         # sqlglot may emit REGEXP_LIKE for MySQL; re-apply compat rewrite for execution on older servers.
         normalized_sql = rewrite_regexp_like_for_mysql_compat(normalized_sql)
     except Exception:

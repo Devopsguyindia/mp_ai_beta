@@ -37,9 +37,11 @@ Some items have **more than one** photo (for example front, detail, or frame).
 
 ## Scenes
 
-The **Scene** dropdown lists presentation contexts (for example gallery wall vs residential interior). When suggestions load, you may also see **Presentation** hints (frame, lighting, placement) from the system.
+The **Scene** dropdown lists **all** presentation contexts defined in your organization’s scene library (for example gallery wall vs residential interior). The **first selection after load** is usually the system’s top **recommended** scene for that item (based on title/edition text and rules), or the first scene in the list if none apply.
 
-**Current product note:** The MVP shows your selected **artwork image** clearly on screen and displays the **scene name** as context. **Room compositing** (blending the artwork into a generated room) is not applied yet; the page may show a **cache key** placeholder for a future compositor. The caption on the page explains this.
+When suggestions load, you may also see **Presentation** hints (frame, lighting, placement).
+
+If your administrator has turned on **server compositing**, changing the scene produces a **combined preview image** (artwork on a scene plate). Otherwise, only the **original image file** is shown, with optional on-page styling around it — see the caption under the preview.
 
 ---
 

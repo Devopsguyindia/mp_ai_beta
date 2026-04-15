@@ -63,6 +63,7 @@ Query parameters:
 |--------|-----------|--------------|
 | `idcompany` | Yes | Tenant id. |
 | `access_token` | Recommended | JWT; when present, must match `idcompany` in token. |
+| `debug` | No | If `true` / `1`, response includes a **`debug`** object (`sql_row_count`, `skips`, `hints`, first-row sample). Set **`SHOWCASE_DEBUG_LOG=1`** on the API to emit the same payload as **`INFO`** logs on every fetch (useful with uvicorn). |
 
 Response (summary):
 
@@ -85,7 +86,13 @@ Returns **presentation suggestions**: `recommended_scene_ids`, `frame_style`, `l
 
 JSON body: `idcompany`, optional `access_token`, `idcompany_item`, `idcompany_item_pictures`, `scene_id`, optional `frame_style` / `lighting` / `placement`.
 
-**MVP:** `output_mode: pass_through` — `preview_url` is the artwork CDN URL; **`cache_key`** is `sha256(picture_id|scene_id|pipeline_version)` for a future compositor. No pixel work is performed.
+- **Default (`SHOWCASE_COMPOSITOR_ENABLED` off):** `output_mode: pass_through` — `preview_url` is the artwork CDN URL; **`cache_key`** is `sha256(picture_id|scene_id|pipeline_version)` for caching.
+- **Compositor on:** `output_mode: composited` — `preview_url` points to **`GET /showcase/render/{cache_key}/preview`** (same auth query params). PNG is generated with Pillow (procedural scene plate or `preview_asset_url` when set). Cache is **in-process LRU** — use one API worker or replace with shared storage later.
+
+### Scene list vs default selection
+
+- **`GET /showcase/scenes`** returns **every** scene in `scene_library_manifest.json` (order as in the file). There is no server-side filtering per item.
+- **`POST /showcase/options`** returns **`recommended_scene_ids`** (rules / optional LLM). The widget picks the **first** recommended id that exists in the loaded scene list, else the **first** scene in the manifest.
 
 ### `POST /showcase/share`
 
@@ -96,6 +103,7 @@ Stub response: `enabled: false` with a message — customer magic links are a la
 | Variable | Purpose |
 |----------|---------|
 | `SHOWCASE_ENABLED` | `0` / `1` — gates router registration and endpoints. |
+| `SHOWCASE_COMPOSITOR_ENABLED` | `1` enables Pillow compositor + `/showcase/render/{cache_key}/preview` (default off). |
 | `MP_ASSET_CDN_BASE` | Base URL for picture assets (default `https://masterpiece.s3.amazonaws.com`). |
 | `SHOWCASE_ASSET_HOST_ALLOWLIST` | Optional comma-separated hostnames; if set, `resolved_url` (and thumbnails) must match. |
 | `SHOWCASE_PICTURES_MAX_ROWS` | Optional cap per item (default `50`). |
@@ -127,7 +135,7 @@ The widget applies the session and navigates off `/login` using `redirect_to` (s
 
 1. Set **`SHOWCASE_ENABLED=1`** on `copilot-api` and redeploy.
 2. Set **`showcaseEnabled: true`** in `environment.prod.ts` (or your build config) and rebuild the SPA.
-3. Confirm MySQL has **`company_item_pictures`** with expected columns (`is_deleted`, `is_primary`, `rank`, `seq_no`, etc., per your DBA).
+3. Confirm MySQL has **`company_item_pictures`** with at least: `idcompany_item_pictures`, `idcompany`, `idcompany_item`, `picture`, `server_path` (see [SHOWCASE_DATA_CONTRACT.md](SHOWCASE_DATA_CONTRACT.md)).
 4. From ERP inventory, open:  
    `https://<widget-host>/#/showcase/inventory?itemId=<idcompany_item>`
 5. Verify `GET /showcase/items/.../pictures` in Network tab returns **200** and URLs load in the browser.
