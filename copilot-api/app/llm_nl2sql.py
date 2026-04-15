@@ -273,7 +273,10 @@ def _strip_is_deleted_on_company_contact_data1(sql: str) -> str:
 
 
 def _sanitize_sql(sql: str, max_limit: int) -> str:
+    from .sql_guardrails import rewrite_redundant_qualified_open_paren
+
     out = sql.strip().strip("`").rstrip(";")
+    out = rewrite_redundant_qualified_open_paren(out)
     out = _normalize_idcompany_placeholders(out)
     out = _repair_common_column_aliases(out)
     out = _repair_common_datetime_function_calls(out)

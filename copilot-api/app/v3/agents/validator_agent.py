@@ -3,7 +3,12 @@ from __future__ import annotations
 from ..models import SQLGenerationOutput, ValidationOutput
 from ..prompts.loader import load_prompt
 from ...llm_nl2sql import generate_query_with_llm
-from ...sql_guardrails import GuardrailResult, rewrite_regexp_like_for_mysql_compat, validate_select_sql
+from ...sql_guardrails import (
+    GuardrailResult,
+    rewrite_redundant_qualified_open_paren,
+    rewrite_regexp_like_for_mysql_compat,
+    validate_select_sql,
+)
 
 
 def validate_with_retry(
@@ -26,6 +31,7 @@ def validate_with_retry(
     def _executable_sql(g: GuardrailResult, original: str) -> str:
         """Prefer guard-normalized SQL (includes REGEXP_LIKE rewrite); belt-and-suspenders rewrite."""
         out = (g.normalized_sql or original).strip()
+        out = rewrite_redundant_qualified_open_paren(out)
         return rewrite_regexp_like_for_mysql_compat(out)
 
     if guard.ok or max_retries <= 0:

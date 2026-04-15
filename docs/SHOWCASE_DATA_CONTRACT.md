@@ -4,33 +4,25 @@ This document summarizes ERP tables and URL rules used by **`/showcase/*`** APIs
 
 ## `company_item_pictures`
 
+The showcase loader **only references** these columns on `company_item_pictures`:
+
 | Column | Usage |
 |--------|--------|
-| `idcompany_item_pictures` | Primary key; used in render **cache keys** and UI selection. |
-| `idcompany`, `idcompany_item` | Tenant + item FK. |
-| `picture`, `server_path` | URL fragments; resolved with `MP_ASSET_CDN_BASE`. |
-| `is_deleted` | Rows with `1` excluded (`COALESCE(is_deleted,0)=0`). |
-| `is_primary`, `rank`, `seq_no` | Sort: primary first, then rank, seq, id. |
-| `thumbnail_url` | Optional; must pass same host allowlist as main URL when set. |
+| `idcompany_item_pictures` | Primary key; selection and render cache. |
+| `idcompany` | Tenant filter in `WHERE`. |
+| `idcompany_item` | Item FK. |
+| `picture` | Filename fragment for CDN URL. |
+| `server_path` | Path prefix for CDN URL. |
+
+No `is_deleted`, `is_primary`, `rank`, `seq_no`, `thumbnail_url`, or other columns are read. Rows are ordered by **`idcompany_item_pictures`** ascending.
 
 ## `company_item`
 
-Joined for `title`, `edition_type`, and soft-delete (`is_delete`).
+Joined for `title` and `edition_type` (presentation context). **No** `is_delete` / `is_deleted` filters are applied on `company_item` or `company_item_pictures`.
 
 ## `company_item_data` (view)
 
-**LEFT JOIN** for display and presentation hints: `EditionName`, `ArtName`.
-
-If this view is unavailable in an environment, operators must adjust `pictures_repo.py` (showcase-only).
-
-## Category / medium
-
-Dedicated ERP columns for **category** and **medium** are not assumed in MVP SQL. The API may return:
-
-- **Heuristic** `category_label` / `medium_label` inferred from title/artist text (soft hints).
-- **Edition** context via `edition_label` / `item_edition_type` from inventory.
-
-Future: extend the SELECT with your gallery’s category/medium tables in **`pictures_repo.py`** only.
+**LEFT JOIN** for display hints: `EditionName`, `ArtName`. If this view is unavailable in an environment, adjust `pictures_repo.py` (showcase-only).
 
 ## Public URL
 

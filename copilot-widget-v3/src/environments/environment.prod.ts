@@ -6,7 +6,11 @@ export const environment = {
   copilotApiBaseUrl: 'https://copilot-api.mpstest.net',
   v3AskEnabled: true,
   reportSuggestionsEnabled: true,
-  showcaseEnabled: false,
+  showcaseEnabled: true,
+  showcasePicturesDebug: false,
+  showcaseImageProxy: true,
+  /** When true, new sessions default to showing server composited PNGs (focal wall / perspective). Users can override via header checkbox (sessionStorage). */
+  showcaseClientCompositedPreview: true,
   /**
    * ERP SPA origin(s) that embed the iframe — must match `event.origin` from the parent page
    * (not the CloudFront widget URL). Add/remove hosts to match your deployment.

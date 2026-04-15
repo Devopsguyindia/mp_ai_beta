@@ -5,3 +5,7 @@ sqlglot>=25.0
 mysql-connector-python>=9.0
 python-dotenv>=1.0
 openai>=1.52
+pillow>=10.0
+
+[showcase]
+rembg>=2.0.50

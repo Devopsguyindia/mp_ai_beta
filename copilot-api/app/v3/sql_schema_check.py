@@ -5,7 +5,11 @@ import re
 import sqlglot
 from sqlglot import exp
 
-from ..sql_guardrails import restore_idcompany_placeholder_after_sqlglot, rewrite_regexp_like_for_mysql_compat
+from ..sql_guardrails import (
+    restore_idcompany_placeholder_after_sqlglot,
+    rewrite_redundant_qualified_open_paren,
+    rewrite_regexp_like_for_mysql_compat,
+)
 
 from .rag.schema_index import load_schema_registry
 
@@ -114,6 +118,7 @@ def validate_sql_columns_against_registry(sql: str) -> tuple[bool, list[str]]:
 
     Returns (ok, violation_messages). On parse failure, returns (True, []) so guardrails handle parse.
     """
+    sql = rewrite_redundant_qualified_open_paren(sql)
     violations: list[str] = []
     tables = _build_table_to_columns()
     if not tables:
@@ -200,6 +205,7 @@ def apply_registry_column_synonyms(sql: str) -> str:
     Rewrite Column nodes that match COLUMN_SYNONYMS_BY_TABLE to exact registry/DB names.
     Safe to run before execute so MySQL sees real column names (e.g. item_title not ItemName).
     """
+    sql = rewrite_redundant_qualified_open_paren(sql)
     tables = _build_table_to_columns()
     if not tables:
         return sql
@@ -264,5 +270,6 @@ def apply_registry_column_synonyms(sql: str) -> str:
     except Exception:
         return sql
     restored = restore_idcompany_placeholder_after_sqlglot(sql, out)
+    restored = rewrite_redundant_qualified_open_paren(restored)
     # sqlglot MySQL emit uses REGEXP_LIKE (8.0.4+); rewrite for older MySQL / MariaDB.
     return rewrite_regexp_like_for_mysql_compat(restored)

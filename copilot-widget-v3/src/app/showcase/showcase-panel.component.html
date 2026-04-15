@@ -1,88 +1,538 @@
-<div class="showcase-shell">
-  <header class="showcase-header">
-    <h1>Artwork showcase</h1>
-    <p class="sub">
-      Preview inventory images in context. Deep-link with query <code>itemId</code> (same session as AI Insights).
-    </p>
-  </header>
+<div
+  class="shPage"
+  [class.shPage--light]="showcaseTheme === 'light'"
+  [class.shPage--dark]="showcaseTheme === 'dark'"
+>
+  <div
+    class="shPanel"
+    [class.shPanel--light]="showcaseTheme === 'light'"
+    [class.shPanel--dark]="showcaseTheme === 'dark'"
+  >
+    <header class="shHeader">
+      <div class="shTitleBlock">
+        <h1 class="shTitle">Artwork showcase</h1>
+        <p class="shSub">
+          Preview inventory images in context. Deep-link with query <code>itemId</code> (same session as AI Insights).
+        </p>
+      </div>
+      <div class="shHeaderActions">
+        <label class="shDebugCheck" title="Use the server composited PNG (backdrop + focal wall / perspective from scene library).">
+          <input
+            type="checkbox"
+            [checked]="showCompositedInPreview"
+            (change)="onCompositedPreviewChange($any($event.target).checked)"
+          />
+          <span>Server room composite</span>
+        </label>
+        <label class="shDebugCheck">
+          <input
+            type="checkbox"
+            [checked]="showDebugTrace"
+            (change)="onShowDebugTraceChange($any($event.target).checked)"
+          />
+          <span>Show API debug</span>
+        </label>
+        <button
+          type="button"
+          class="shThemeToggle"
+          (click)="toggleShowcaseTheme()"
+          [attr.aria-pressed]="showcaseTheme === 'dark'"
+          [title]="showcaseTheme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'"
+        >
+          {{ showcaseTheme === 'light' ? 'Dark' : 'Light' }}
+        </button>
+      </div>
+    </header>
 
-  <section class="showcase-body" *ngIf="session">
-    <div class="hint" *ngIf="itemId == null">
-      <p>Add <strong>?itemId=</strong> with a <code>idcompany_item</code> value to load images from <code>company_item_pictures</code>.</p>
-      <p class="example">Example: <code>#/showcase/inventory?itemId=12345</code></p>
+    <div class="shBody">
+      <section *ngIf="session">
+        <div class="hint" *ngIf="itemId == null">
+          <p>Add <strong>?itemId=</strong> with a <code>idcompany_item</code> value to load images from <code>company_item_pictures</code>.</p>
+          <p class="example">Example: <code>#/showcase/inventory?itemId=12345</code></p>
+        </div>
+
+        <div class="loading" *ngIf="itemId != null && loadingPictures">Loading pictures…</div>
+        <div class="error" *ngIf="error">{{ error }}</div>
+
+        <div class="content" *ngIf="itemId != null && picturesRes && !loadingPictures">
+          <div class="meta">
+            <h2 *ngIf="picturesRes.item_title"><strong>Item Title:</strong> {{ picturesRes.item_title }}</h2>
+            <p class="muted">
+              Item #{{ picturesRes.idcompany_item }} · {{ picturesRes.pictures.length }} image(s)
+              <span *ngIf="picturesRes.pipeline_version"> · library {{ picturesRes.pipeline_version }}</span>
+            </p>
+            <ul class="facets muted" *ngIf="picturesRes.artist_display || picturesRes.edition_label || picturesRes.category_label || picturesRes.medium_label">
+              <li *ngIf="picturesRes.artist_display"><strong>Artist</strong> {{ picturesRes.artist_display }}</li>
+              <li *ngIf="picturesRes.edition_label"><strong>Edition</strong> {{ picturesRes.edition_label }}</li>
+              <li *ngIf="picturesRes.category_label"><strong>Category</strong> {{ picturesRes.category_label }}</li>
+              <li *ngIf="picturesRes.medium_label"><strong>Medium</strong> {{ picturesRes.medium_label }}</li>
+            </ul>
+          </div>
+
+          <div class="empty" *ngIf="picturesRes.pictures.length === 0">
+            <p>No images on file for this item. Upload pictures in the ERP, then refresh.</p>
+            <p class="muted small" *ngIf="effectiveDebugQuery">
+              Dev: ensure API has <code>SHOWCASE_DEBUG_LOG=1</code> (uvicorn logs) or use <strong>Show API debug</strong> above.
+            </p>
+          </div>
+
+          <div class="debug-panel" *ngIf="showDebugTrace">
+            <h3 class="debug-title">Showcase API debug</h3>
+            <pre class="debug-pre" *ngIf="showcaseDebugDump">{{ showcaseDebugDump | json }}</pre>
+            <p class="muted small debug-empty" *ngIf="!showcaseDebugDump">
+              No debug payloads yet. With this checkbox on, reload the item or wait for options/render.
+            </p>
+          </div>
+
+          <div class="presentation" *ngIf="options && picturesRes.pictures.length > 0">
+            <h3 class="pres-title">Presentation</h3>
+            <p class="muted small" *ngIf="options.presentation_source">
+              Suggested via <strong>{{ options.presentation_source }}</strong>
+              <span *ngIf="options.notes"> — {{ options.notes }}</span>
+            </p>
+            <ul class="pres-list muted small">
+              <li *ngIf="options.frame_style"><strong>Frame</strong> {{ options.frame_style }}</li>
+              <li *ngIf="effectiveLighting"><strong>Lighting</strong> {{ effectiveLighting }}</li>
+              <li *ngIf="options.placement"><strong>Placement</strong> {{ options.placement }}</li>
+            </ul>
+          </div>
+
+          <div class="studio-phase1" *ngIf="picturesRes.pictures.length > 0">
+            <h3 class="pres-title">Studio — Phase 1</h3>
+            <p class="muted small">
+              Eight room presets, artwork detection, frames, lighting, physical scale, optional cutout, style matching, and
+              batch renders (server compositor).
+            </p>
+            <div class="studio-actions">
+              <button type="button" class="shBtn" (click)="runStudioAnalyze()" [disabled]="loadingStudio">
+                {{ loadingStudio ? 'Analyzing…' : 'Analyze artwork' }}
+              </button>
+              <button type="button" class="shBtn shBtn--secondary" (click)="runBatchAllScenes()" [disabled]="loadingBatch">
+                {{ loadingBatch ? 'Batch rendering…' : 'Render all scenes' }}
+              </button>
+            </div>
+            <div class="studio-results" *ngIf="studioRes">
+              <p class="muted small">
+                <strong>Kind</strong> {{ studioRes.artwork_kind }} · <strong>Placement</strong>
+                {{ studioRes.detected_placement }}
+              </p>
+              <ul class="pres-list muted small" *ngIf="studioRes.frame_suggestions?.length">
+                <li><strong>Frame ideas</strong> {{ studioRes.frame_suggestions.join(', ') }}</li>
+                <li><strong>Lighting ideas</strong> {{ studioRes.lighting_suggestions.join(', ') }}</li>
+              </ul>
+              <p class="muted small" *ngIf="studioRes.notes">{{ studioRes.notes }}</p>
+              <div class="style-match" *ngIf="studioRes.style_matches?.length">
+                <span class="style-match-label">Style ↔ room</span>
+                <ul>
+                  <li *ngFor="let m of studioRes.style_matches.slice(0, 8)">
+                    {{ m.label }} <span class="score">({{ m.score }})</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div class="studio-suggestion-actions" *ngIf="studioRes?.frame_suggestions?.length">
+              <button type="button" class="shBtn" (click)="runSuggestionRenders()"
+                      [disabled]="loadingSuggestions || !selectedSceneId">
+                {{ loadingSuggestions ? 'Rendering suggestions…' : 'Preview frame & lighting suggestions' }}
+              </button>
+            </div>
+            <div class="batch-grid" *ngIf="suggestionRenders.length">
+              <p class="muted small">{{ suggestionRenders.length }} frame &amp; lighting suggestion(s) — click to enlarge</p>
+              <div class="batch-tiles">
+                <button class="batch-tile-card" *ngFor="let s of suggestionRenders; let i = index"
+                        (click)="openSuggestionCarousel(i)">
+                  <img [src]="suggestionPreviewSrc(s.preview_url)" alt="{{ s.frame_style }} · {{ s.lighting }}" />
+                  <span class="batch-tile-label">{{ s.frame_style }} · {{ s.lighting }}</span>
+                </button>
+              </div>
+            </div>
+            <div class="studio-advanced">
+              <div class="studio-advanced__inline-row">
+                <label class="studio-compact-control">
+                  <span class="studio-compact-control__label">Layout offset</span>
+                  <select
+                    class="select--layout-compact"
+                    [(ngModel)]="layoutVariant"
+                    (ngModelChange)="onStudioControlsChange()"
+                  >
+                    <option [ngValue]="null">Scene default (manifest)</option>
+                    <option [ngValue]="0">0 — centered</option>
+                    <option [ngValue]="1">1 — bias left</option>
+                    <option [ngValue]="2">2 — bias right</option>
+                    <option [ngValue]="3">3 — lower on wall</option>
+                    <option [ngValue]="4">4 — higher</option>
+                    <option [ngValue]="5">5 — left + lower</option>
+                    <option [ngValue]="6">6 — right + higher</option>
+                    <option [ngValue]="7">7 — extra low</option>
+                  </select>
+                </label>
+                <label class="studio-compact-control">
+                  <span class="studio-compact-control__label">Artwork accent light</span>
+                  <select
+                    class="select--layout-compact"
+                    [(ngModel)]="artSpotlight"
+                    (ngModelChange)="onStudioControlsChange()"
+                    title="Directed warm highlight on the framed area (server composite only)"
+                  >
+                    <option value="off">Off</option>
+                    <option value="top">From top</option>
+                    <option value="bottom">From bottom</option>
+                    <option value="left">From left</option>
+                    <option value="right">From right</option>
+                    <option value="lr">Left &amp; right</option>
+                    <option value="tb">Top &amp; bottom</option>
+                    <option value="quad">All sides (rim)</option>
+                  </select>
+                </label>
+                <label class="studio-compact-control">
+                  <span class="studio-compact-control__label">Lighting mood</span>
+                  <select
+                    class="select--layout-compact"
+                    [(ngModel)]="lightingPreset"
+                    (ngModelChange)="onStudioControlsChange()"
+                    title="Full-scene lighting look (server composite). Default uses presentation suggestion."
+                  >
+                    <option value="">Default (presentation)</option>
+                    <option value="morning_sunlight_beam">Morning sunlight beam</option>
+                    <option value="oblique_shadow">Oblique shadow</option>
+                    <option value="sunset">Sunset</option>
+                    <option value="tree_shade">Tree shade (dappled)</option>
+                    <option value="hazy">Hazy</option>
+                    <option value="warm">Warm</option>
+                    <option value="cool">Cool</option>
+                    <option value="bamboo_shadow">Bamboo shadow</option>
+                    <option value="flower_shadow">Flower shadow</option>
+                    <option value="gallery_track_wash">Gallery track wash</option>
+                    <option value="warm_ambient">Warm ambient</option>
+                    <option value="daylight_north">Daylight (north)</option>
+                    <option value="pedestal_spot">Pedestal spot</option>
+                  </select>
+                </label>
+                <label class="studio-compact-control">
+                  <span class="studio-compact-control__label">Frame</span>
+                  <select
+                    class="select--layout-compact"
+                    [(ngModel)]="frameFinish"
+                    (ngModelChange)="onStudioControlsChange()"
+                    [disabled]="frameFinishesDisabled"
+                    title="Wood or modern frame on the server composited preview. Not used for 3D / pedestal pieces."
+                  >
+                    <option value="">Default (presentation)</option>
+                    <optgroup label="Hardwood">
+                      <option value="rosewood">Rosewood</option>
+                      <option value="oakwood">Oakwood</option>
+                      <option value="walnut">Walnut</option>
+                      <option value="maple">Maple</option>
+                      <option value="cherry">Cherry</option>
+                      <option value="mahogany">Mahogany</option>
+                      <option value="teak">Teak</option>
+                    </optgroup>
+                    <optgroup label="Softwood">
+                      <option value="pine">Pine</option>
+                      <option value="cedar">Cedar</option>
+                    </optgroup>
+                    <optgroup label="Modern &amp; minimalist">
+                      <option value="thin_black_metal">Thin black metal</option>
+                      <option value="white_frame">White frame</option>
+                      <option value="sleek_silver">Sleek silver / aluminum</option>
+                      <option value="acrylic_floating">Acrylic floating</option>
+                      <option value="shadow_box">Shadow box</option>
+                    </optgroup>
+                  </select>
+                </label>
+                <label class="studio-compact-control">
+                  <span class="studio-compact-control__label">Frame size</span>
+                  <select
+                    class="select--layout-compact"
+                    [(ngModel)]="frameProfile"
+                    (ngModelChange)="onStudioControlsChange()"
+                    [disabled]="frameFinishesDisabled || !frameFinish"
+                    title="Moulding width when a custom frame is selected."
+                  >
+                    <option value="thin">Thin</option>
+                    <option value="thick">Thick</option>
+                  </select>
+                </label>
+              </div>
+              <p class="muted small" *ngIf="frameFinishesDisabled">
+                Custom <strong>Frame</strong> options apply to wall art only. This item was analyzed as a 3D / pedestal piece.
+              </p>
+              <p class="muted small studio-layout-hint">
+                <strong>Layout offset</strong> moves artwork on the <em>server composited</em> image only. Turn on
+                <strong>Server room composite</strong> in the header, pick a scene, then compare
+                <strong>1 vs 2</strong> (left/right) or <strong>3 vs 4</strong> (lower/higher) — the piece should shift clearly on the wall.
+                With composite off, the preview is CSS styling only, so this control has no visible effect.
+              </p>
+              <label class="shCheck">
+                <input type="checkbox" [(ngModel)]="cutoutEnabled" (ngModelChange)="onStudioControlsChange()" />
+                <span>Cutout (rembg when server enables <code>SHOWCASE_CUTOUT_ENABLED</code>)</span>
+              </label>
+              <div class="physical-row">
+                <label>
+                  Art width (cm)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    [(ngModel)]="physicalWidthCm"
+                    (ngModelChange)="onStudioControlsChange()"
+                    placeholder="optional"
+                  />
+                </label>
+                <label>
+                  Art height (cm)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    [(ngModel)]="physicalHeightCm"
+                    (ngModelChange)="onStudioControlsChange()"
+                    placeholder="optional"
+                  />
+                </label>
+                <label>
+                  Wall width (cm)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    [(ngModel)]="wallWidthCm"
+                    (ngModelChange)="onStudioControlsChange()"
+                    placeholder="optional"
+                  />
+                </label>
+                <label title="Real width in cm of the scene focal wall band (matches manifest focal_wall_rect). Use with art width for accurate scale.">
+                  Wall span / focal (cm)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    [(ngModel)]="wallSpanCm"
+                    (ngModelChange)="onStudioControlsChange()"
+                    placeholder="optional"
+                  />
+                </label>
+              </div>
+            </div>
+            <div class="batch-grid" *ngIf="batchRes?.items?.length">
+              <p class="muted small"><strong>Batch</strong> — {{ batchRes!.items.length }} scene(s). Click a tile to enlarge.</p>
+              <div class="batch-tiles">
+                <button
+                  type="button"
+                  class="batch-tile-card"
+                  *ngFor="let it of batchRes!.items; let i = index"
+                  (click)="openBatchCarousel(i)"
+                >
+                  <img [src]="batchPreviewSrc(it.preview_url)" [alt]="'Scene ' + it.scene_id" referrerpolicy="no-referrer" />
+                  <span class="batch-tile-label">{{ it.scene_id }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls" *ngIf="picturesRes.pictures.length > 0">
+            <label *ngIf="picturesRes.pictures.length > 1">
+              Image
+              <select
+                [ngModel]="selectedPictureId"
+                (ngModelChange)="onPictureChange($event)"
+              >
+                <option *ngFor="let p of picturesRes.pictures" [ngValue]="p.idcompany_item_pictures">
+                  {{ p.picture }}<span *ngIf="p.is_primary"> (primary)</span>
+                </option>
+              </select>
+            </label>
+            <label *ngIf="scenes.length">
+              Scene
+              <select
+                [ngModel]="selectedSceneId"
+                (ngModelChange)="onSceneChange($event)"
+              >
+                <option *ngFor="let s of scenes" [ngValue]="s.scene_id">{{ s.label }}</option>
+              </select>
+            </label>
+          </div>
+
+          <p class="muted small" *ngIf="loadingOptions || (loadingRender && !previewSrc)">Updating preview…</p>
+          <p class="muted small composite-hint" *ngIf="isCompositedPreview && !showCompositedFlatPreview && !showPreviewBusy">
+            <strong>Tip:</strong> Turn on <strong>Server room composite</strong> (header) to see the backdrop with focal-wall and perspective placement from the scene library. Batch tiles always use the composited PNG.
+          </p>
+
+          <div class="preview" *ngIf="previewSrc">
+            <div
+              class="preview-loader"
+              *ngIf="showPreviewBusy"
+              role="status"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <span class="preview-loader__spin" aria-hidden="true"></span>
+              <span class="preview-loader__text">{{ loadingRender ? 'Preparing scene…' : 'Loading preview…' }}</span>
+            </div>
+            <ng-container *ngIf="!showCompositedFlatPreview; else compositedOnly">
+              <div
+                class="scene-stage"
+                [ngClass]="sceneStageThemeClass"
+                [style]="sceneBackdropTrustStyle"
+              >
+                <div class="artwork-frame">
+                  <img
+                    [src]="previewSrc"
+                    alt="Selected artwork"
+                    referrerpolicy="no-referrer"
+                    (load)="onPreviewImgLoad()"
+                    (error)="onPreviewImgError()"
+                  />
+                </div>
+              </div>
+            </ng-container>
+            <ng-template #compositedOnly>
+              <div class="composited-flat">
+                <img
+                  [src]="previewSrc"
+                  alt="Composited scene preview"
+                  referrerpolicy="no-referrer"
+                  (load)="onPreviewImgLoad()"
+                  (error)="onPreviewImgError()"
+                />
+              </div>
+            </ng-template>
+            <p class="preview-image-error" *ngIf="previewImageFailed">
+              Preview failed to load. If you use the API image proxy, check the Network tab for
+              <code>.../pictures/…/file</code> (502 means the API could not fetch the CDN URL — often still 403 for private S3 without signing).
+              <a *ngIf="previewUrl" [href]="previewUrl" target="_blank" rel="noopener noreferrer">Open original asset URL</a>
+              <span *ngIf="!previewUrl">No direct asset URL on record.</span>
+            </p>
+            <p class="caption muted">
+              <span *ngIf="showCompositedFlatPreview && renderRes?.output_mode === 'composited' && previewImageFailed">
+                <strong>Composited PNG did not load</strong> — showing the original artwork URL instead. Check the Network tab for
+                <code>…/render/…/preview</code> (404 often means cache expired or the API restarted).
+              </span>
+              <span *ngIf="showCompositedFlatPreview && renderRes?.output_mode === 'composited' && !previewImageFailed">
+                <strong>Composited preview</strong> — artwork on a server-generated scene plate (PNG). Change scene to re-run the compositor.
+              </span>
+              <span
+                *ngIf="
+                  !showCompositedFlatPreview &&
+                  selectedSceneId &&
+                  picturesRes?.pictures?.length &&
+                  renderRes?.output_mode !== 'pass_through'
+                "
+              >
+                <strong>Room preview</strong> — scene, lighting, and frame styles below match your selection; the photo is your
+                original file (not the server composited PNG).
+              </span>
+              <span *ngIf="renderRes?.output_mode === 'pass_through'">
+                <strong>Scene preview</strong> — wall, lighting, and mat change with your selection. The file is still the
+                original artwork (server compositor off or not run).
+                <span *ngIf="renderRes?.cache_key as ck" class="cache-hint">
+                  <code>cache_key</code> {{ ck | slice:0:12 }}…
+                </span>
+              </span>
+              <span *ngIf="!renderRes">Choose a scene to see the styled preview.</span>
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <div class="loading" *ngIf="itemId != null && loadingPictures">Loading pictures…</div>
-    <div class="error" *ngIf="error">{{ error }}</div>
-
-    <div class="content" *ngIf="itemId != null && picturesRes && !loadingPictures">
-      <div class="meta">
-        <h2 *ngIf="picturesRes.item_title">{{ picturesRes.item_title }}</h2>
-        <p class="muted">
-          Item #{{ picturesRes.idcompany_item }} · {{ picturesRes.pictures.length }} image(s)
-          <span *ngIf="picturesRes.pipeline_version"> · library {{ picturesRes.pipeline_version }}</span>
-        </p>
-        <ul class="facets muted" *ngIf="picturesRes.artist_display || picturesRes.edition_label || picturesRes.category_label || picturesRes.medium_label">
-          <li *ngIf="picturesRes.artist_display"><strong>Artist</strong> {{ picturesRes.artist_display }}</li>
-          <li *ngIf="picturesRes.edition_label"><strong>Edition</strong> {{ picturesRes.edition_label }}</li>
-          <li *ngIf="picturesRes.category_label"><strong>Category</strong> {{ picturesRes.category_label }}</li>
-          <li *ngIf="picturesRes.medium_label"><strong>Medium</strong> {{ picturesRes.medium_label }}</li>
-        </ul>
-      </div>
-
-      <div class="empty" *ngIf="picturesRes.pictures.length === 0">
-        <p>No images on file for this item. Upload pictures in the ERP, then refresh.</p>
-      </div>
-
-      <div class="presentation" *ngIf="options && picturesRes.pictures.length > 0">
-        <h3 class="pres-title">Presentation</h3>
-        <p class="muted small" *ngIf="options.presentation_source">
-          Suggested via <strong>{{ options.presentation_source }}</strong>
-          <span *ngIf="options.notes"> — {{ options.notes }}</span>
-        </p>
-        <ul class="pres-list muted small">
-          <li *ngIf="options.frame_style"><strong>Frame</strong> {{ options.frame_style }}</li>
-          <li *ngIf="options.lighting"><strong>Lighting</strong> {{ options.lighting }}</li>
-          <li *ngIf="options.placement"><strong>Placement</strong> {{ options.placement }}</li>
-        </ul>
-      </div>
-
-      <div class="controls" *ngIf="picturesRes.pictures.length > 0">
-        <label *ngIf="picturesRes.pictures.length > 1">
-          Image
-          <select
-            [ngModel]="selectedPictureId"
-            (ngModelChange)="onPictureChange($event)"
+    <div
+      class="batch-carousel-backdrop"
+      *ngIf="batchCarouselOpen && batchCarouselItemCount > 0"
+      (click)="closeBatchCarousel()"
+      role="presentation"
+    >
+      <div
+        class="batch-carousel-dialog"
+        (click)="$event.stopPropagation()"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="'Scene preview, ' + (batchCarouselIndex + 1) + ' of ' + batchCarouselItemCount"
+      >
+        <button type="button" class="batch-carousel-close shBtn shBtn--secondary" (click)="closeBatchCarousel()" aria-label="Close">
+          Close
+        </button>
+        <div class="batch-carousel-stage">
+          <button
+            type="button"
+            class="batch-carousel-nav batch-carousel-nav--prev"
+            (click)="batchCarouselPrev()"
+            aria-label="Previous scene"
           >
-            <option *ngFor="let p of picturesRes.pictures" [ngValue]="p.idcompany_item_pictures">
-              {{ p.picture }}<span *ngIf="p.is_primary"> (primary)</span>
-            </option>
-          </select>
-        </label>
-        <label *ngIf="scenes.length">
-          Scene
-          <select
-            [ngModel]="selectedSceneId"
-            (ngModelChange)="onSceneChange($event)"
+            ‹
+          </button>
+          <div class="batch-carousel-img-wrap">
+            <img
+              [src]="batchCarouselImageSrc"
+              [alt]="batchCarouselSceneLabel || batchCarouselSceneId"
+              referrerpolicy="no-referrer"
+            />
+          </div>
+          <button
+            type="button"
+            class="batch-carousel-nav batch-carousel-nav--next"
+            (click)="batchCarouselNext()"
+            aria-label="Next scene"
           >
-            <option *ngFor="let s of scenes" [ngValue]="s.scene_id">{{ s.label }}</option>
-          </select>
-        </label>
-      </div>
-
-      <p class="muted small" *ngIf="loadingOptions || loadingRender">Updating preview…</p>
-
-      <div class="preview" *ngIf="previewUrl">
-        <div class="scene-badge" *ngIf="selectedSceneLabel">{{ selectedSceneLabel }}</div>
-        <img [src]="previewUrl" alt="Selected artwork" />
-        <p class="caption muted">
-          <span *ngIf="renderRes?.output_mode === 'pass_through'">
-            Compositor pass-through — artwork URL is unchanged; <code>cache_key</code> is reserved for the future compositor
-            (<code *ngIf="renderRes?.cache_key as ck">{{ ck | slice:0:14 }}…</code>).
-          </span>
-          <span *ngIf="!renderRes">Scene label describes presentation context for this MVP.</span>
-        </p>
+            ›
+          </button>
+        </div>
+        <div class="batch-carousel-meta">
+          <p class="batch-carousel-title">{{ batchCarouselSceneLabel }}</p>
+          <p class="batch-carousel-sub muted small">{{ batchCarouselSceneId }}</p>
+          <p class="batch-carousel-count muted small">{{ batchCarouselIndex + 1 }} / {{ batchCarouselItemCount }}</p>
+        </div>
+        <p class="batch-carousel-hint muted small">Use arrow keys or click the side buttons. Escape to close.</p>
       </div>
     </div>
-  </section>
+
+    <div
+      class="batch-carousel-backdrop"
+      *ngIf="suggestionCarouselOpen && suggestionCarouselItemCount > 0"
+      (click)="closeSuggestionCarousel()"
+      role="presentation"
+    >
+      <div
+        class="batch-carousel-dialog"
+        (click)="$event.stopPropagation()"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="'Suggestion preview, ' + (suggestionCarouselIndex + 1) + ' of ' + suggestionCarouselItemCount"
+      >
+        <button type="button" class="batch-carousel-close shBtn shBtn--secondary" (click)="closeSuggestionCarousel()" aria-label="Close">
+          Close
+        </button>
+        <div class="batch-carousel-stage">
+          <button
+            type="button"
+            class="batch-carousel-nav batch-carousel-nav--prev"
+            (click)="suggestionCarouselPrev()"
+            aria-label="Previous suggestion"
+          >
+            ‹
+          </button>
+          <div class="batch-carousel-img-wrap">
+            <img
+              [src]="suggestionCarouselImageSrc"
+              [alt]="suggestionCarouselLabel"
+              referrerpolicy="no-referrer"
+            />
+          </div>
+          <button
+            type="button"
+            class="batch-carousel-nav batch-carousel-nav--next"
+            (click)="suggestionCarouselNext()"
+            aria-label="Next suggestion"
+          >
+            ›
+          </button>
+        </div>
+        <div class="batch-carousel-meta">
+          <p class="batch-carousel-title">{{ suggestionCarouselLabel }}</p>
+          <p class="batch-carousel-count muted small">{{ suggestionCarouselIndex + 1 }} / {{ suggestionCarouselItemCount }}</p>
+        </div>
+        <p class="batch-carousel-hint muted small">Use arrow keys or click the side buttons. Escape to close.</p>
+      </div>
+    </div>
+  </div>
 </div>

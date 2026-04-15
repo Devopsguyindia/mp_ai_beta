@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService, SessionInfo } from './auth.service';
+import { loadPanelTheme, savePanelTheme } from './panel-theme.storage';
 import { ChatResponse, CopilotApiService, CopilotType, ReportSuggestionsResponse } from './copilot-api.service';
 
 /** Local prompt history (same scoping pattern as dashboard) with timestamp for display. */
@@ -57,6 +58,7 @@ export class ModuleInsightsPanelComponent implements OnInit {
       this.router.navigate(['/login']);
       return;
     }
+    this.insightsTheme = loadPanelTheme();
     this.route.paramMap.subscribe((pm) => {
       const m = (pm.get('erpModule') || 'contact') as ErpModuleParam;
       this.erpModule = ['contact', 'inventory', 'sales', 'reports'].includes(m) ? m : 'contact';
@@ -234,6 +236,7 @@ export class ModuleInsightsPanelComponent implements OnInit {
 
   toggleInsightsTheme(): void {
     this.insightsTheme = this.insightsTheme === 'light' ? 'dark' : 'light';
+    savePanelTheme(this.insightsTheme);
   }
 
   loadReportSuggestions(): void {

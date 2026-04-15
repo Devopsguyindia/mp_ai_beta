@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .compositor_geometry import parse_focal_rect_from_json, parse_quad_from_json, valid_focal_rect, valid_placement_quad
 from .models import SceneInfo
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,32 @@ def load_scene_manifest() -> tuple[str, list[SceneInfo]]:
             continue
         tags = s.get("tags")
         tag_list = [str(t) for t in tags] if isinstance(tags, list) else []
+        layout_raw = s.get("layout_index")
+        try:
+            layout_idx = int(layout_raw) if layout_raw is not None else 0
+        except (TypeError, ValueError):
+            layout_idx = 0
+        focal_wall_rect = None
+        fr_raw = s.get("focal_wall_rect")
+        if fr_raw is not None:
+            ft = parse_focal_rect_from_json(fr_raw)
+            if ft and valid_focal_rect(ft):
+                focal_wall_rect = ft
+        placement_quad = None
+        pq_raw = s.get("placement_quad")
+        if pq_raw is not None:
+            pq = parse_quad_from_json(pq_raw)
+            if pq and valid_placement_quad(pq):
+                placement_quad = pq
+        try:
+            eye_level_fraction = float(s["eye_level_fraction"])
+            eye_level_fraction = max(0.0, min(1.0, eye_level_fraction))
+        except (KeyError, TypeError, ValueError):
+            eye_level_fraction = 0.48
+        try:
+            wall_span_cm = float(s["wall_span_cm"]) if s.get("wall_span_cm") else None
+        except (TypeError, ValueError):
+            wall_span_cm = None
         scenes.append(
             SceneInfo(
                 scene_id=sid,
@@ -67,6 +94,14 @@ def load_scene_manifest() -> tuple[str, list[SceneInfo]]:
                 preview_asset_url=str(s.get("preview_asset_url")).strip() if s.get("preview_asset_url") else None,
                 qa_status=str(s.get("qa_status")).strip() if s.get("qa_status") else None,
                 tags=tag_list,
+                room_category=str(s.get("room_category")).strip() if s.get("room_category") else None,
+                interior_style=str(s.get("interior_style")).strip() if s.get("interior_style") else None,
+                placement_hint=str(s.get("placement_hint")).strip() if s.get("placement_hint") else None,
+                layout_index=max(0, min(7, layout_idx)),
+                focal_wall_rect=focal_wall_rect,
+                placement_quad=placement_quad,
+                eye_level_fraction=eye_level_fraction,
+                wall_span_cm=wall_span_cm,
             )
         )
     return (version, scenes)
