@@ -4,7 +4,9 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 
 ## Development server
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The app will automatically reload if you change any of the source files.
+Run `npm start` (from this folder) for a dev server. It uses `node --openssl-legacy-provider` so Angular 12 / Webpack builds on **Node 17+** (including Node 20) without `ERR_OSSL_EVP_UNSUPPORTED`. Navigate to `http://localhost:4200/`. The app will automatically reload if you change any of the source files.
+
+If you run `ng serve` or `npx ng serve` directly on Node 17+, set `NODE_OPTIONS=--openssl-legacy-provider` first, or ensure your shell is actually on Node 16 (`node -v`) after `nvm use`.
 
 ## Code scaffolding
 

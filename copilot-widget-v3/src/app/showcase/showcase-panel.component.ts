@@ -112,7 +112,14 @@ export class ShowcasePanelComponent implements OnInit {
 
   /** When true, calls API with debug flag (env default OR user checkbox). */
   get effectiveDebugQuery(): boolean {
-    return !!environment.showcasePicturesDebug || this.showDebugTrace;
+    return (
+      (!!environment.showcasePicturesDebug || this.showDebugTrace) &&
+      this.auth.canShowClientDebug(this.session)
+    );
+  }
+
+  get canShowClientDebug(): boolean {
+    return this.auth.canShowClientDebug(this.session);
   }
 
   /** Combined debug payloads when checkbox is on (pictures / options / render). */
@@ -150,10 +157,19 @@ export class ShowcasePanelComponent implements OnInit {
       return;
     }
     this.showcaseTheme = loadPanelTheme();
-    try {
-      this.showDebugTrace = sessionStorage.getItem(ShowcasePanelComponent.DEBUG_TRACE_STORAGE_KEY) === '1';
-    } catch {
+    if (!this.auth.canShowClientDebug(this.session)) {
       this.showDebugTrace = false;
+      try {
+        sessionStorage.removeItem(ShowcasePanelComponent.DEBUG_TRACE_STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+    } else {
+      try {
+        this.showDebugTrace = sessionStorage.getItem(ShowcasePanelComponent.DEBUG_TRACE_STORAGE_KEY) === '1';
+      } catch {
+        this.showDebugTrace = false;
+      }
     }
     this.showCompositedInPreview = !!environment.showcaseClientCompositedPreview;
     try {

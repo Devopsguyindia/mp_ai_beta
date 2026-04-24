@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 import re
@@ -29,6 +30,7 @@ from .sql_guardrails import (
 from .sql_runner import QueryResult, run_select_query
 from .sql_user_messages import SQL_QUERY_USER_FRIENDLY_ANSWER
 from .v3.memory.log_store import get_recent_events_filtered
+from .debug_access import is_jesse_debug_viewer
 from .v3.models import DbConnectionStatus, V3AskRequest, V3AskResponse
 from .v3.orchestrator import run_v3_ask
 from .report_suggestions import router as report_suggestions_router
@@ -38,6 +40,8 @@ from .auth_audit_store import append_auth_audit_event, client_ip_from_request_he
 # Load copilot-api/.env regardless of process cwd (uvicorn often run from repo root).
 _COPILOT_API_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_COPILOT_API_ROOT / ".env")
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Copilot API (V1, read-only)", version="0.1.0")
 
@@ -57,14 +61,30 @@ _LOCAL_DEV_ORIGINS = (
     "http://127.0.0.1",
     "http://localhost",
 )
-cors_origins_raw = os.getenv(
-    "CORS_ALLOW_ORIGINS",
-    ",".join(_LOCAL_DEV_ORIGINS),
-)
+# Primary list (comma-separated). If unset or blank, use local dev defaults only.
+_cors_primary = os.getenv("CORS_ALLOW_ORIGINS")
+if not (_cors_primary and _cors_primary.strip()):
+    cors_origins_raw = ",".join(_LOCAL_DEV_ORIGINS)
+else:
+    cors_origins_raw = _cors_primary
 cors_allow_origins = [_normalize_origin(o) for o in cors_origins_raw.split(",") if o.strip()]
+# Append-only list for production hosts without editing the main line (e.g. CloudFront + ERP shell).
+_extra_raw = os.getenv("CORS_EXTRA_ORIGINS", "")
+for o in (_normalize_origin(x) for x in _extra_raw.split(",") if x.strip()):
+    if o not in cors_allow_origins:
+        cors_allow_origins.append(o)
 for local_origin in _LOCAL_DEV_ORIGINS:
     if local_origin not in cors_allow_origins:
         cors_allow_origins.append(local_origin)
+
+if not any(x.startswith("https://") for x in cors_allow_origins):
+    logger.warning(
+        "CORS: no https:// origin is configured. Deployed SPAs over HTTPS will be blocked until "
+        "you set CORS_ALLOW_ORIGINS and/or CORS_EXTRA_ORIGINS to your real widget/page origins "
+        "(exact scheme + host + port, comma-separated)."
+    )
+else:
+    logger.info("CORS: allowing %s origin(s)", len(cors_allow_origins))
 
 app.add_middleware(
     CORSMiddleware,
@@ -909,6 +929,8 @@ def v3_ask(req: V3AskRequest) -> V3AskResponse:
         req_idcompany=req.idcompany,
         access_token=req.access_token,
     )
+    if req.debug and not is_jesse_debug_viewer(req.access_token, req.user_id):
+        req = req.model_copy(update={"debug": False})
     try:
         return run_v3_ask(req=req, resolved_idcompany=resolved_idcompany)
     except HTTPException:

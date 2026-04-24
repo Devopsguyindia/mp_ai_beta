@@ -25,7 +25,7 @@ export class ModuleInsightsPanelComponent implements OnInit {
   activeTab: 'chat' | 'history' | 'details' | 'reports' = 'chat';
   /** Module insights only: default light per product spec */
   insightsTheme: 'light' | 'dark' = 'light';
-  showDebug = true;
+  showDebug = false;
   displayChart = true;
 
   question = '';
@@ -58,6 +58,7 @@ export class ModuleInsightsPanelComponent implements OnInit {
       this.router.navigate(['/login']);
       return;
     }
+    this.showDebug = this.auth.canShowClientDebug(this.session);
     this.insightsTheme = loadPanelTheme();
     this.route.paramMap.subscribe((pm) => {
       const m = (pm.get('erpModule') || 'contact') as ErpModuleParam;
@@ -71,6 +72,10 @@ export class ModuleInsightsPanelComponent implements OnInit {
         this.loadHistory();
       }
     });
+  }
+
+  get canShowClientDebug(): boolean {
+    return this.auth.canShowClientDebug(this.session);
   }
 
   get title(): string {
