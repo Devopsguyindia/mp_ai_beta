@@ -30,7 +30,14 @@
     <nav class="miTabs" *ngIf="erpModule !== 'reports'">
       <button type="button" [class.active]="activeTab === 'chat'" (click)="activeTab = 'chat'">Chat</button>
       <button type="button" [class.active]="activeTab === 'history'" (click)="activeTab = 'history'">History</button>
-      <button type="button" [class.active]="activeTab === 'details'" (click)="activeTab = 'details'">Details</button>
+      <button
+        *ngIf="canShowClientDebug"
+        type="button"
+        [class.active]="activeTab === 'details'"
+        (click)="activeTab = 'details'"
+      >
+        Details
+      </button>
     </nav>
     <nav class="miTabs" *ngIf="erpModule === 'reports'">
       <button type="button" [class.active]="activeTab === 'reports'" (click)="activeTab = 'reports'">Report usage insights</button>
@@ -95,7 +102,7 @@
     <!-- Chat tab -->
     <section class="miBody" *ngIf="erpModule !== 'reports' && activeTab === 'chat'">
       <div class="miToolbar">
-        <label class="miCheck">
+        <label class="miCheck" *ngIf="canShowClientDebug">
           <input type="checkbox" [(ngModel)]="showDebug" />
           <span>Show work (debug)</span>
         </label>
@@ -215,7 +222,7 @@
     </section>
 
     <!-- Details / debug tab -->
-    <section class="miBody miDetails" *ngIf="erpModule !== 'reports' && activeTab === 'details'">
+    <section class="miBody miDetails" *ngIf="erpModule !== 'reports' && activeTab === 'details' && canShowClientDebug">
       <div class="miEmpty" *ngIf="!response">Run a question in the Chat tab to see SQL and debug info.</div>
       <pre class="miPre" *ngIf="response?.debug && showDebug">{{ response.debug | json }}</pre>
       <p *ngIf="response && !showDebug">Enable “Show work (debug)” in the Chat tab to see details.</p>

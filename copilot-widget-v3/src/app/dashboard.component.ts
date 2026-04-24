@@ -23,7 +23,7 @@ export interface ChartDataSets {
 export class DashboardComponent implements OnInit {
   session: SessionInfo | null = null;
   question = '';
-  debug = true;
+  debug = false;
   displayChart = true;
 
   loading = false;
@@ -70,6 +70,10 @@ export class DashboardComponent implements OnInit {
     return Array.isArray(this.response?.follow_up_prompts) && this.response.follow_up_prompts.length > 0;
   }
 
+  get canShowClientDebug(): boolean {
+    return this.auth.canShowClientDebug(this.session);
+  }
+
   constructor(
     private auth: AuthService,
     private api: CopilotApiService,
@@ -82,6 +86,7 @@ export class DashboardComponent implements OnInit {
       this.router.navigate(['/login']);
       return;
     }
+    this.debug = this.auth.canShowClientDebug(this.session);
     this.loadHistory();
     if (this.reportSuggestionsFeatureEnabled) {
       this.loadReportSuggestions();
@@ -322,10 +327,17 @@ export class DashboardComponent implements OnInit {
       question: this.question.trim(),
       debug: this.debug
     };
+    const uid =
+      this.session.userid != null
+        ? String(this.session.userid)
+        : this.session.token_payload?.userid != null
+          ? String(this.session.token_payload.userid)
+          : undefined;
     const call$ = this.useV3Ask
       ? this.api.askV3({
           ...req,
-          include_chart: this.displayChart
+          include_chart: this.displayChart,
+          user_id: uid
         })
       : this.api.chat(req);
     call$.subscribe({

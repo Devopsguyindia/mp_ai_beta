@@ -39,8 +39,19 @@ from .presentation import build_options_payload
 from .render_service import build_render_cache_key, composited_render_result, stub_render_result
 from .studio import analyze_artwork_for_showcase
 from .url_build import get_asset_base_url, resolve_artwork_fetch_url_candidates
+from ..debug_access import is_jesse_debug_viewer
 
 logger = logging.getLogger(__name__)
+
+
+def _showcase_client_debug_effective(requested: bool, access_token: str | None) -> bool:
+    return bool(requested) and is_jesse_debug_viewer(access_token, None)
+
+
+def _expose_debug_in_error(dbg: dict | object | None, *, requested: bool, access_token: str | None) -> bool:
+    if not dbg:
+        return False
+    return _showcase_client_debug_effective(requested, access_token) or showcase_debug_log_enabled()
 
 
 def _public_api_base(request: Request) -> str:
@@ -195,12 +206,13 @@ def get_item_pictures(
     resolved = _resolve_idcompany(req_idcompany=idcompany, access_token=access_token)
     allow = (os.getenv("SHOWCASE_ASSET_HOST_ALLOWLIST") or "").strip() or None
     pipeline_version, _ = load_scene_manifest()
+    eff_debug = _showcase_client_debug_effective(debug, access_token)
     err, ctx, rows, dbg = _fetch_pictures_common(
         idcompany=resolved,
         idcompany_item=idcompany_item,
         allow=allow,
         request_id=rid,
-        want_client_debug=debug,
+        want_client_debug=eff_debug,
     )
     if err:
         detail: dict = {
@@ -208,7 +220,7 @@ def get_item_pictures(
             "message": "Could not load item pictures.",
             "request_id": rid,
         }
-        if dbg:
+        if _expose_debug_in_error(dbg, requested=debug, access_token=access_token):
             detail["debug"] = dbg
         raise HTTPException(status_code=503, detail=detail)
     pictures = [ItemPictureRow.model_validate(r) for r in rows]
@@ -223,7 +235,7 @@ def get_item_pictures(
         medium_label=ctx.medium_label,
         pipeline_version=pipeline_version,
         pictures=pictures,
-        debug=_attach_response_debug(dbg, want_client_debug=debug),
+        debug=_attach_response_debug(dbg, want_client_debug=eff_debug),
     )
 
 
@@ -357,12 +369,13 @@ def post_showcase_options(req: ShowcaseOptionsRequest) -> ShowcaseOptionsRespons
     rid = str(uuid.uuid4())
     resolved = _resolve_idcompany(req_idcompany=req.idcompany, access_token=req.access_token)
     allow = (os.getenv("SHOWCASE_ASSET_HOST_ALLOWLIST") or "").strip() or None
+    eff_debug = _showcase_client_debug_effective(req.debug, req.access_token)
     err, ctx, rows, dbg = _fetch_pictures_common(
         idcompany=resolved,
         idcompany_item=req.idcompany_item,
         allow=allow,
         request_id=rid,
-        want_client_debug=req.debug,
+        want_client_debug=eff_debug,
     )
     if err:
         detail: dict = {
@@ -370,7 +383,7 @@ def post_showcase_options(req: ShowcaseOptionsRequest) -> ShowcaseOptionsRespons
             "message": "Could not load item pictures.",
             "request_id": rid,
         }
-        if dbg:
+        if _expose_debug_in_error(dbg, requested=req.debug, access_token=req.access_token):
             detail["debug"] = dbg
         raise HTTPException(status_code=503, detail=detail)
     picture_ids = [int(r["idcompany_item_pictures"]) for r in rows]
@@ -406,7 +419,7 @@ def post_showcase_options(req: ShowcaseOptionsRequest) -> ShowcaseOptionsRespons
         suitable_picture_ids=payload.get("suitable_picture_ids") or [],
         presentation_source=str(payload.get("presentation_source")) if payload.get("presentation_source") else None,
         notes=str(payload.get("notes")) if payload.get("notes") else None,
-        debug=_attach_response_debug(dbg, want_client_debug=req.debug),
+        debug=_attach_response_debug(dbg, want_client_debug=eff_debug),
     )
 
 
@@ -418,12 +431,13 @@ def post_showcase_studio_analyze(req: ShowcaseStudioAnalyzeRequest) -> ShowcaseS
     rid = str(uuid.uuid4())
     resolved = _resolve_idcompany(req_idcompany=req.idcompany, access_token=req.access_token)
     allow = (os.getenv("SHOWCASE_ASSET_HOST_ALLOWLIST") or "").strip() or None
+    eff_debug = _showcase_client_debug_effective(req.debug, req.access_token)
     err, ctx, rows, dbg = _fetch_pictures_common(
         idcompany=resolved,
         idcompany_item=req.idcompany_item,
         allow=allow,
         request_id=rid,
-        want_client_debug=req.debug,
+        want_client_debug=eff_debug,
     )
     if err:
         detail: dict = {
@@ -431,7 +445,7 @@ def post_showcase_studio_analyze(req: ShowcaseStudioAnalyzeRequest) -> ShowcaseS
             "message": "Could not load item pictures.",
             "request_id": rid,
         }
-        if dbg:
+        if _expose_debug_in_error(dbg, requested=req.debug, access_token=req.access_token):
             detail["debug"] = dbg
         raise HTTPException(status_code=503, detail=detail)
     picture_ids = [int(r["idcompany_item_pictures"]) for r in rows]
@@ -457,7 +471,7 @@ def post_showcase_studio_analyze(req: ShowcaseStudioAnalyzeRequest) -> ShowcaseS
         style_matches=list(analyzed["style_matches"]),
         scene_ranking=list(analyzed["scene_ranking"]),
         notes=str(analyzed["notes"]) if analyzed.get("notes") else None,
-        debug=_attach_response_debug(dbg, want_client_debug=req.debug),
+        debug=_attach_response_debug(dbg, want_client_debug=eff_debug),
     )
 
 
@@ -474,12 +488,13 @@ def post_showcase_batch_render(req: ShowcaseBatchRenderRequest, request: Request
     rid = str(uuid.uuid4())
     company_id = _resolve_idcompany(req_idcompany=req.idcompany, access_token=req.access_token)
     allow = (os.getenv("SHOWCASE_ASSET_HOST_ALLOWLIST") or "").strip() or None
+    eff_debug = _showcase_client_debug_effective(req.debug, req.access_token)
     err, _ctx, rows, dbg = _fetch_pictures_common(
         idcompany=company_id,
         idcompany_item=req.idcompany_item,
         allow=allow,
         request_id=rid,
-        want_client_debug=req.debug,
+        want_client_debug=eff_debug,
     )
     if err:
         detail: dict = {
@@ -487,7 +502,7 @@ def post_showcase_batch_render(req: ShowcaseBatchRenderRequest, request: Request
             "message": "Could not load item pictures.",
             "request_id": rid,
         }
-        if dbg:
+        if _expose_debug_in_error(dbg, requested=req.debug, access_token=req.access_token):
             detail["debug"] = dbg
         raise HTTPException(status_code=503, detail=detail)
     match = next((r for r in rows if int(r["idcompany_item_pictures"]) == req.idcompany_item_pictures), None)
@@ -602,7 +617,7 @@ def post_showcase_batch_render(req: ShowcaseBatchRenderRequest, request: Request
     return ShowcaseBatchRenderResponse(
         pipeline_version=pipeline_version,
         items=items,
-        debug=_attach_response_debug(dbg, want_client_debug=req.debug),
+        debug=_attach_response_debug(dbg, want_client_debug=eff_debug),
     )
 
 
@@ -641,12 +656,13 @@ def post_showcase_render(req: ShowcaseRenderRequest, request: Request) -> Showca
     rid = str(uuid.uuid4())
     company_id = _resolve_idcompany(req_idcompany=req.idcompany, access_token=req.access_token)
     allow = (os.getenv("SHOWCASE_ASSET_HOST_ALLOWLIST") or "").strip() or None
+    eff_debug = _showcase_client_debug_effective(req.debug, req.access_token)
     err, _ctx, rows, dbg = _fetch_pictures_common(
         idcompany=company_id,
         idcompany_item=req.idcompany_item,
         allow=allow,
         request_id=rid,
-        want_client_debug=req.debug,
+        want_client_debug=eff_debug,
     )
     if err:
         detail: dict = {
@@ -654,7 +670,7 @@ def post_showcase_render(req: ShowcaseRenderRequest, request: Request) -> Showca
             "message": "Could not load item pictures.",
             "request_id": rid,
         }
-        if dbg:
+        if _expose_debug_in_error(dbg, requested=req.debug, access_token=req.access_token):
             detail["debug"] = dbg
         raise HTTPException(status_code=503, detail=detail)
     match = next((r for r in rows if int(r["idcompany_item_pictures"]) == req.idcompany_item_pictures), None)
@@ -775,7 +791,7 @@ def post_showcase_render(req: ShowcaseRenderRequest, request: Request) -> Showca
             art_spotlight=req.art_spotlight,
         )
     out = ShowcaseRenderResponse.model_validate(raw)
-    if dbg and (req.debug or showcase_debug_log_enabled()):
+    if dbg and (_showcase_client_debug_effective(req.debug, req.access_token) or showcase_debug_log_enabled()):
         out = out.model_copy(update={"debug": dbg})
     return out
 

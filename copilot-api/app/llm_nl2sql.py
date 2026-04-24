@@ -257,6 +257,30 @@ def _repair_common_datetime_function_calls(sql: str) -> str:
     return out
 
 
+def _qualify_tenant_idcompany_for_company_vendor_joins(sql: str) -> str:
+    """
+    When company_vendor is joined to company_contact_data1, both expose `idcompany`.
+    Unqualified `idcompany = %(idcompany)s` (e.g. from _enforce_or_parentheses_scope) triggers MySQL 1052.
+    Rewrite to the vendor table alias, e.g. v.idcompany = %(idcompany)s.
+    """
+    lowered = sql.lower()
+    if "company_vendor" not in lowered or "company_contact_data1" not in lowered:
+        return sql
+    m = re.search(
+        r"(?is)\bfrom\s+`?company_vendor`?(?:\s+as)?\s+`?(\w+)`?",
+        sql,
+    )
+    if not m:
+        return sql
+    alias = m.group(1)
+    # Unqualified tenant bind only (not v.idcompany / cc.idcompany); avoid idcompany_contact etc.
+    return re.sub(
+        r"(?i)(?<![.\w`])idcompany\s*=\s*%\(\s*idcompany\s*\)s",
+        f"{alias}.idcompany = %(idcompany)s",
+        sql,
+    )
+
+
 def _strip_is_deleted_on_company_contact_data1(sql: str) -> str:
     """
     company_contact_data1 is a view that already exposes valid contacts only.
@@ -286,6 +310,7 @@ def _sanitize_sql(sql: str, max_limit: int) -> str:
     out = _enforce_shared_edition_predicate(out)
     out = _strip_is_deleted_on_company_contact_data1(out)
     out = _coerce_limit(out, max_limit=max_limit)
+    out = _qualify_tenant_idcompany_for_company_vendor_joins(out)
     return out
 
 

@@ -91,6 +91,29 @@ export class AuthService {
     return !!(s && s.access_token && s.idcompany);
   }
 
+  /**
+   * V3 / Showcase: show client debug UI and send debug=true only for login ``jesse``
+   * (case-insensitive), matching server ``is_jesse_debug_viewer``.
+   */
+  canShowClientDebug(session: SessionInfo | null): boolean {
+    if (!session) {
+      return false;
+    }
+    const ids: string[] = [];
+    const uid = session.userid?.trim();
+    if (uid) {
+      ids.push(uid.toLowerCase());
+    }
+    const p = session.token_payload || {};
+    for (const key of ['userid', 'user_id', 'sub', 'username', 'firstname', 'fullname'] as const) {
+      const v = p[key];
+      if (v != null && String(v).trim()) {
+        ids.push(String(v).trim().toLowerCase());
+      }
+    }
+    return ids.includes('jesse');
+  }
+
   logout(): void {
     localStorage.removeItem(SESSION_KEY);
   }

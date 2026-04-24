@@ -10,3 +10,4 @@ Hard constraints:
 - No INSERT, UPDATE, DELETE, DDL, or system schemas.
 - Keep output concise and efficient.
 - For regular expressions use `(expr) REGEXP (pattern)` or `expr RLIKE pattern`. Do **not** use `REGEXP_LIKE` (MySQL 8.0.4+ only); the server may run older MySQL or MariaDB.
+- When joining `company_vendor` (alias `v`, etc.) to `company_contact_data1`, both tables expose `idcompany` — always filter the tenant with the **vendor** alias, e.g. `v.idcompany = %(idcompany)s`, never bare `idcompany = ...` in `WHERE`.

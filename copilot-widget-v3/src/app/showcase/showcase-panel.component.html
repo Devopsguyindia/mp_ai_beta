@@ -24,7 +24,7 @@
           />
           <span>Server room composite</span>
         </label>
-        <label class="shDebugCheck">
+        <label class="shDebugCheck" *ngIf="canShowClientDebug">
           <input
             type="checkbox"
             [checked]="showDebugTrace"
@@ -76,7 +76,7 @@
             </p>
           </div>
 
-          <div class="debug-panel" *ngIf="showDebugTrace">
+          <div class="debug-panel" *ngIf="canShowClientDebug && showDebugTrace">
             <h3 class="debug-title">Showcase API debug</h3>
             <pre class="debug-pre" *ngIf="showcaseDebugDump">{{ showcaseDebugDump | json }}</pre>
             <p class="muted small debug-empty" *ngIf="!showcaseDebugDump">

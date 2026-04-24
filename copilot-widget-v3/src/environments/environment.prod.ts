@@ -7,7 +7,7 @@ export const environment = {
   v3AskEnabled: true,
   reportSuggestionsEnabled: true,
   showcaseEnabled: true,
-  showcasePicturesDebug: false,
+  showcasePicturesDebug: true,
   showcaseImageProxy: true,
   /** When true, new sessions default to showing server composited PNGs (focal wall / perspective). Users can override via header checkbox (sessionStorage). */
   showcaseClientCompositedPreview: true,
